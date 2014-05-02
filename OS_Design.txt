@@ -1,0 +1,41 @@
+LucOS Design and Planning (Don't judge the name, it's just temporary)
+
+
+Memory Management (DRAFT):
+=================================
+||                             || 4GB
+||(Remainder of MB)  Swap Space||
+||  for Suspended Applications ||
+||                             ||
+||=============================||
+||           Stack             || }
+||-----------------------------|| }}
+||           Heap              || }}} 4-8(?)MB Running Application Space
+||-----------------------------|| }}
+||      Application Code       || }
+||=============================||
+||      Shell Code (??KB)      ||
+||=============================||
+||                             ||
+||          5MB (?)            ||
+||        Kernel Code          ||
+||                             ||
+||=============================||
+||   Colour Monitor Control    || 0xB8000
+||=============================||
+|| Monochrome Monitor Control  || 0xB0000
+||=============================||
+||                             ||
+||       Empty Space????       ||
+||                             ||
+||=============================||
+||                             ||
+|| 64k: stage 1 of kernel load ||
+||                             ||
+||=============================||
+|| 512 bytes: intial boot code || 0
+=================================
+
+
+
+Anything else that needs to be figured out?
