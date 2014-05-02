@@ -1,9 +1,9 @@
 ;
-; BOOTSECT.S: SecureOS Bootloader v2.0 -> Stage 1
+; BOOTSECT.S: MiniOS32 Bootloader v2.0 -> Stage 1
 ;
 ;             This program has 1 purpose in life; it resides on the volume
 ;             boot record (VBR) of a hard disk partition and is responsible
-;             for loading the SecureOS Bootloader -> Stage 2 into RAM and
+;             for loading the MiniOS32 Bootloader -> Stage 2 into RAM and
 ;             transferring control over to Stage 2.
 ;
 ;             The disk and partition on which the bootloader resides is
@@ -24,7 +24,7 @@
 ;             of sectors to read for Stage 2 without re-assembling the
 ;             source code.
 ;
-;             As implemented, the SecureOS Bootloader v2.0 can load sectors
+;             As implemented, the MiniOS32 Bootloader v2.0 can load sectors
 ;             up to 4TB, limited only by the MBR format; it does not
 ;             understand GPT format to enable support for loading Stage 2
 ;             from beyond the 4TB limit imposed by MBR format.
@@ -332,7 +332,7 @@ ret
 ; String constants.
 
 str_greeting:
-DB  "SecureOS Bootloader v2.0 -> Stage 1"
+DB  "MiniOS32 Bootloader v2.0 -> Stage 1"
 
 str_crlf:
 DB  0x0D, 0x0A, 0x00
@@ -358,5 +358,5 @@ size    EQU     $ - entry
 TIMES   (512 - 4 - size)        DB      0x00
 
 num_sect:
-DW   0x03FF
+DW   0x007F
 DB   0x55, 0xAA
