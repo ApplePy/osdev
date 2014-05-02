@@ -1,49 +1,162 @@
-#include "real_mode_sw_int.h"
-
 #define NULL 0
 
 #include "string.h"
 
-extern void my_print( char *s );
-extern void pokeb( unsigned long addr, char b );
-extern char peekb( unsigned long addr );
-extern void stackdump( unsigned long addr, char b );
+char inb( unsigned short port );
+void callfn();
+long get_eip();
+void irq_disable();
+void irq_enable();
+void reset();
+void real_mode_sw_int_call();
+
+// For use with real_mode_sw_int_call function; holds register parameters
+// and interrupt type. It is also used to return any register values. All
+// general purpose registers (AX, BX, CX and DX) can also be accessed via
+// their high and low bytes, e.g., AH and AL.
+typedef struct real_mode_sw_int {
+
+   unsigned short flags;
+   
+   unsigned short di;
+   unsigned short si;
+   unsigned short bp;
+   unsigned short sp_ignored;	// SP is not restored from POPA
+   
+   union {
+      unsigned short bx;
+      struct {
+         unsigned char bl;
+         unsigned char bh;
+      };
+   };
+   
+   union {
+      unsigned short dx;
+      struct {
+         unsigned char dl;
+         unsigned char dh;
+      };
+   };
+   
+   union {
+      unsigned short cx;
+      struct {
+         unsigned char cl;
+         unsigned char ch;
+      };
+   };
+   
+   union {
+      unsigned short ax;
+      struct {
+         unsigned char al;
+         unsigned char ah;
+      };
+   };
+   
+   unsigned char  opcode;	// Suggestion: 0xCD
+   unsigned char  operand;
+
+} Real_Mode_SW_Int;
+
+// For use with Int 13h extensions, functions 42h (extended read) and
+// 43h (extended write).
+typedef struct disk_address_packet {
+
+   unsigned char      packet_size;	// 0x10
+   unsigned char      resv1;	      // 0x00
+   unsigned char      num_blocks;	// Maximum 0x7F
+   unsigned char      resv2;	      // 0x00
+   unsigned short     offset;	      // Real-mode transfer buffer
+   unsigned short     segment;	   // Real-mode transfer buffer
+   unsigned long long LBA_sector;	// Sector to read/write
+
+} Disk_Address_Packet;
+
+extern unsigned long part_start_lba;
+extern unsigned long part_length;
+extern unsigned char bios_disk_number;
+extern unsigned long _start;
+extern Real_Mode_SW_Int real_mode_linear_sw_int;
+extern unsigned long real_mode_linear_esp;
+extern unsigned long XXX;
+extern unsigned long YYY;
+extern Disk_Address_Packet disk_address_packet;
 
 unsigned short *video = ( unsigned short * ) 0xB8000;
 
-extern void putcc( unsigned char c );
-extern char getcc();
-extern void reset();
-extern void go_real();
+#define TTY 0x03F8
+#define DLLB	 0
+#define IER	 1
+#define DLHB	 1
+#define IIR	 2
+#define FCR	 2
+#define LCR	 3
+#define MCR	 4
+#define LSR	 5
+#define MSR	 6
+#define SCRATCH	 7
 
-void printhex( char x ) {
+// send byte to I/O port
+static inline void outb( unsigned short port, unsigned char val)
+{
+    asm volatile ( "outb %0, %1" : : "a"(val), "Nd"(port) );
+    /* TODO: Is it wrong to use 'N' for the port? It's not a 8-bit constant. */
+    /* TODO: Should %1 be %w1? */
+    /* TODO: Is there any reason to force the use of eax and edx? */
+}
 
-   unsigned short z;
+// send a character to the serial port console
+void putcc( char c ) {
 
-   z = ( x & 0xF0 ) >> 4;
-   if ( z < 10 )
-      z += '0';
-   else
-      z += 'A' - 10;
-   putcc( z );
-   /*z |= 0x2e00;
-   video[ y * 3 ] = z;
-   pokeb( ( 0xb8cd0 + y * 6 ), z );
-   pokeb( ( 0xb8cd0 + y * 6 ) + 1, 0x2e );*/
+   if ( c == 0x0A )
+      putcc( 0x0D );
 
-   z = x & 0x0F;
-   if ( z < 10 )
-      z += '0';
-   else
-      z += 'A' - 10;
-   putcc( z );
-   /*z |= 0x2e00;
-   video[ y * 3 + 1 ] = z;
-   pokeb( ( 0xb8cd0 + y * 6 ) + 2, z );
-   pokeb( ( 0xb8cd0 + y * 6 ) + 3, 0x2e );*/
+   while ( ( inb( TTY + LSR ) & 0x20 ) == 0x00 )
+      ;
+   
+   outb( TTY, c );
 
 }
 
+// get a character from the serial port console
+// echoes back to the console if echo is non-zero
+char getcc( int echo ) {
+
+   char c;
+
+   while ( ( inb( TTY + LSR ) & 0x01 ) == 0x00 )
+      ;
+   
+   c = inb( TTY );
+   
+   if ( echo )
+      putcc( c );
+   
+   return c;
+
+}
+
+// print a number in hexadecimal format
+void printhex( unsigned long num, int digits ) {
+
+   int i, buf;
+
+   for ( i = 0; i < digits; i++ ) {
+   
+      buf = ( num >> ( ( digits - i - 1 ) * 4 ) ) & 0xF;
+      if ( buf < 10 )
+         buf += '0';
+      else
+         buf += 'A' - 10;
+      putcc( buf );
+   
+   }
+   
+}
+
+// print a null-terminated string
 void printss( char *s ) {
 
    while ( *s ) {
@@ -55,6 +168,8 @@ void printss( char *s ) {
 
 }
 
+// print n characters from the string pointed to by s
+// protect against control characters < 32 and > 127
 void printsss( char *s, int n ) {
 
    while ( n-- ) {
@@ -70,167 +185,440 @@ void printsss( char *s, int n ) {
 
 }
 
+// converts to lowercase
+char lowercase( char c ) {
+
+   if ( ( c >= 'A' ) && ( c <= 'Z' ) )
+      c += 'a' - 'A';
+
+   return c;
+
+}
+
+// gets up to 8 hex digits & stores in num
+// returns 0 on success and non-zero on invalid input
+int gethex( unsigned long *num, int digits, int echo ) {
+
+   char buf;
+   int i;
+
+   if ( echo )
+      printss( " " );
+   *num = 0;
+
+   for ( i = 0; i < digits; i++ ) {
+   
+      buf = lowercase( getcc( echo ) );
+      if ( ( buf < '0' ) || ( buf > 'f' ) || ( ( buf > '9' ) && ( buf < 'a' ) ) )
+         return -1;
+      if ( buf > '9' )
+         buf -= 'a' - 10;
+      else
+         buf -= '0';
+      *num = ( *num << 4 ) + buf;
+      
+   }
+
+   return 0;
+   
+}
+
+// To test 'c' command
+void testfn() {
+
+   putcc('A');
+
+}
+
+// enable A20 address line using the keyboard controller,
+// to allow access to RAM > 1MB.
+// Returns 0 on success, non-zero on failure.
+int enableA20() {
+   
+//   irq_disable();
+   
+   int i;
+   char status;
+   
+   // Make 5 attempts to enable A20
+   for ( i = 0; i < 5; i++ ) {
+      
+      // Wait for controller to be ready for a command
+      while ( inb( 0x0064 ) & 0x02 )
+         ;
+      
+      // Tell controller we want to read the current status
+      outb( 0x0064, 0xD0 );
+      
+      // Wait for controller to be ready with data
+      while ( ( inb( 0x0064 ) & 0x01 ) == 0 )
+         ;
+      
+      // Read current port status
+      status = inb( 0x0060 );
+      
+      // Wait for controller to be ready for a command
+      while ( inb( 0x0064 ) & 0x02 )
+         ;
+      
+      // Tell controller we want to write status byte
+      outb( 0x0064, 0xD1 );
+      
+      // Wait for controller to be ready for data
+      while ( inb( 0x0064 ) & 0x02 )
+         ;
+      
+      // Turn on A20 enable bit
+      status |= 0x02;
+      
+      // Write new value
+      outb( 0x0060, status );
+      
+      // Check that it was enabled
+      
+      // Wait for controller to be ready for a command
+      while ( inb( 0x0064 ) & 0x02 )
+         ;
+      
+      // Tell controller we want to read the current status
+      outb( 0x0064, 0xD0 );
+      
+      // Wait for controller to be ready with data
+      while ( ( inb( 0x0064 ) & 0x01 ) == 0 )
+         ;
+      
+      // Read current port status
+      status = inb( 0x0060 );
+      
+      // Is A20 enabled?
+      if ( status & 0x02 ) {
+         
+         printss( "\nA20 enabled using PRIMARY method on attempt " );
+         printhex( i + 1, 1 );
+         printss( "." );
+         
+//         irq_enable();
+         
+         return 0;
+         
+      }
+      
+   }
+   
+   // Initial attempt(s) to enable A20 has failed. Try a backup
+   // method that is not supported on many chipsets but is the
+   // only method that works on other chipsets.
+   
+   // Make 5 more attempts to enable A20
+   for ( i = 0; i < 5; i++ ) {
+      
+      // Wait for controller to be ready for a command
+      while ( inb( 0x0064 ) & 0x02 )
+         ;
+      
+      // Tell controller we want to turn on A20
+      outb( 0x0064, 0xDF );
+      
+      // Wait for controller to be ready for a command
+      while ( inb( 0x0064 ) & 0x02 )
+         ;
+      
+      // Tell controller we want to read the current status
+      outb( 0x0064, 0xD0 );
+      
+      // Wait for controller to be ready with data
+      while ( ( inb( 0x0064 ) & 0x01 ) == 0 )
+         ;
+      
+      // Read current port status
+      status = inb( 0x0060 );
+      
+      // Is A20 enabled?
+      if ( status & 0x02 ) {
+         
+         printss( "\nA20 enabled using SECONDARY method on attempt " );
+         printhex( i + 1, 1 );
+         printss( "." );
+         
+//         irq_enable();
+         
+         return 0;
+         
+      }
+      
+   }
+   
+   printss( "\nAll attempts to enable A20 FAILED!" );
+   
+//   irq_enable();
+   
+   return -1;
+   
+}
+
+// Read sector(s) from booted partition to 0x4000:0000
+// Returns 0 on success and non-zero on failure
+int int13h_read( unsigned long sector_offset, unsigned char num_blocks ) {
+   
+   // Bounds check; only read sectors on the booted partition
+   if ( sector_offset + num_blocks > part_length )
+      return -1;
+   
+   // Sanity check; BIOS int13h can only read up to 0x7F blocks
+   if ( num_blocks > 0x7F )
+      return -1;
+   
+   disk_address_packet.packet_size = 0x10;
+   disk_address_packet.resv1 = 0x00;
+   disk_address_packet.num_blocks = num_blocks;
+   disk_address_packet.resv2 = 0x00;
+   disk_address_packet.offset = 0x0000;
+   disk_address_packet.segment = 0x4000;
+   disk_address_packet.LBA_sector = ( unsigned long long ) part_start_lba + ( unsigned long long ) sector_offset;
+   
+   real_mode_linear_sw_int.ah = 0x42;   // Extended read
+   real_mode_linear_sw_int.dl = bios_disk_number;
+   real_mode_linear_sw_int.si = 0x0040; // Pointer to dap (in real mode memory...DS:SI)
+   real_mode_linear_sw_int.opcode = 0xCD;
+   real_mode_linear_sw_int.operand = 0x13;
+   
+   real_mode_sw_int_call();
+   
+   return real_mode_linear_sw_int.ah;
+   
+}
+
+// Write sector(s) to booted partition from 0x4000:0100
+// Returns 0 on success and non-zero on failure
+int int13h_write( unsigned long sector_offset, char num_blocks ) {
+   
+   // Bounds check; only write sectors on the booted partition
+   if ( sector_offset + num_blocks > part_length )
+      return -1;
+   
+   // Sanity check; BIOS int13h can only write up to 0x7F blocks
+   if ( num_blocks > 0x7F )
+      return -1;
+   
+   disk_address_packet.packet_size = 0x10;
+   disk_address_packet.resv1 = 0x00;
+   disk_address_packet.num_blocks = num_blocks;
+   disk_address_packet.resv2 = 0x00;
+   disk_address_packet.offset = 0x0000;
+   disk_address_packet.segment = 0x4000;
+   disk_address_packet.LBA_sector = ( unsigned long long ) part_start_lba + ( unsigned long long ) sector_offset;
+   
+   real_mode_linear_sw_int.al = 0x00;   // Write with verify off
+   real_mode_linear_sw_int.ah = 0x43;   // Extended write
+   real_mode_linear_sw_int.dl = bios_disk_number;
+   real_mode_linear_sw_int.si = 0x0040; // Pointer to dap (in real mode memory...DS:SI)
+   real_mode_linear_sw_int.opcode = 0xCD;
+   real_mode_linear_sw_int.operand = 0x13;
+   
+   real_mode_sw_int_call();
+   
+   return real_mode_linear_sw_int.ah;
+   
+}
+
 int main(void) {
 
-   char s[ 27 ] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-   printhex( memcmp( "D", "D", 1 ) );
-   printhex( memcmp( "D", "A", 1 ) );
-   printhex( memcmp( "D", "G", 1 ) );
-   putcc( ' ' );
+   char buf, *addr, checksum;
+   int i, count, lba_sector, num_blocks;
+ 
+   printss( "\nSecureOS Bootloader v2.0 -> Stage 2\n" );
+   printss( "Copyright (C) 2001, 2013\n" );
+   printss( "Enter \"?\" for help\n" );
+   printss( "Boot ROM date = " );
+   printsss( ( char * ) 0xFFFF5, 8 );
+   printss( "\nEIP = " );
+   printhex( get_eip(), 8 );
+   enableA20();
    
-   memset( s + 10, '?', 5 );
+   printss( "\npart_start_lba=" );
+   printhex( part_start_lba, 8 );
+   printss( "\npart_length=" );
+   printhex( part_length, 8 );
+   printss( "\nbios_disk_number=" );
+   printhex( bios_disk_number, 2 );
    
-   printsss( s, 27 );
-
-//   printhex( s1 );
-   printhex( strlen( s ) );
-
-   //char s2[] = "";
-   //printhex( strlen( s2 ) );
-   printhex( strlen( "ABC456789" ) );
-   printhex( strlen( "" ) );
-
-   
-
-putcc( '\n' );
-//reset();
-   /*char *yy = (char *)0x40000;
-   int k;
-   
-   putcc( '*' );
-   putcc( '\n' );
-   putcc( '\n' );
-   for ( k = 0; k < 512; k++ ) {
-      printhex( yy[ k ] );
-      if ( k % 16 == 15 )
-         putcc( '\n' );
-      else
-         putcc( ' ' );
-   }
-   putcc( '\n' );
-   putcc( '\n' );
-
-   // Print char using BIOS
-
-   Real_Mode_SW_Int real_mode_int;
-   
-   real_mode_int.ax = 0x0E24;
-printhex(real_mode_int.ah);
-printhex(real_mode_int.al);
-   
-   real_mode_int.opcode = 0xCD;
-   real_mode_int.operand = 0x10;
-   
-   real_mode_sw_int_call( &real_mode_int, NULL );
-   
-   // Read disk sector using BIOS
-
-   Disk_Address_Packet dap;
-   
-   dap.packet_size = 0x10;
-   dap.resv1 = 0x00;
-   dap.num_blocks = 0x01;
-   dap.resv2 = 0x00;
-   dap.offset = 0x0000;
-   dap.segment = 0x4000;
-//   dap.LBA_sector = 0x0000000002ED5EB1ULL;
-   dap.LBA_sector = 0x0000000002FFC13CULL;
-
-   real_mode_int.ah = 0x42; // Extended read
-   real_mode_int.dl = 0x80; // BIOS disk number
-   real_mode_int.si = 0x0000; // Pointer to dap (in real mode memory...DS:SI)
-   real_mode_int.opcode = 0xCD;
-   real_mode_int.operand = 0x13;
-   
-   real_mode_sw_int_memset( 0x0000, &dap, sizeof( dap ) );
-   real_mode_sw_int_call( &real_mode_int, NULL );
-   
-   printss("\nBiatch!\n");
-   printhex( 0xA5 );
-   putcc( '\n' );
-   putcc( '\n' );
-   for ( k = 0; k < 512; k++ ) {
-      printhex( yy[ k ] );
-      if ( k % 16 == 15 )
-         putcc( '\n' );
-      else
-         putcc( ' ' );
-   }
-   putcc( '\n' );
-   putcc( '-' );
-   printhex( sizeof( real_mode_int ) );
-      putcc( '-' );
-*/
-   
-   putcc( '\n' );
-   char buf[ 100 ], s1[ 100 ], s2[ 100 ];
-   int count = 0, i, n;
+   printss( "\n_start=" );
+   printhex( ( unsigned long ) &_start, 8 );
+   printss( "\nreal_mode_linear_sw_int=" );
+   printhex( ( unsigned long ) &real_mode_linear_sw_int, 8 );
+   printss( "\nreal_mode_linear_esp=" );
+   printhex( ( unsigned long ) &real_mode_linear_esp, 8 );
+   printss( "\nXXX=" );
+   printhex( ( unsigned long ) &XXX, 8 );
+   printss( "\nYYY=" );
+   printhex( ( unsigned long ) &YYY, 8 );
    
    while ( 1 ) {
 
-      buf[ count++ ] = getcc();
+      printss( "\n>" );
 
-      if ( buf[ count - 1 ] == '\b' ) {
+      buf = lowercase( getcc( 1 ) );
 
-         putcc( ' ' );
-         putcc( '\b' );
+      if ( buf == 'b' ) {
+
+         printss( "\nRebooting!!\n" );
+         reset();
 
       }
+      
+      else if ( buf == 'c' ) {
+      
+         if ( gethex( ( void * ) &addr, 8, -1 ) != 0 )
+            continue;
 
-      else if ( buf[ count - 1 ] == '\r' ) {
+         callfn( addr );
 
-         buf[ count - 1 ] = '\0';
+      }
+      
+      else if ( buf == 'd' ) {
+      
+         if ( gethex( ( void * ) &addr, 8, -1 ) != 0 )
+            continue;
 
-         putcc( '\n' );
+         if ( gethex( ( void * ) &count, 8, -1 ) != 0 )
+            continue;
+
+         count += ( unsigned long ) addr & 0x0000000F;
+         addr = ( char * ) ( ( unsigned long ) addr & 0xFFFFFFF0 );
+         checksum = 0;
          
-         printss( "You entered: " );
-         printss( buf );
-         printss( "\r\n" );
-
-         for ( i = 0; i < count; i++ )
-            if ( ( buf[ i ] >= 'A' ) && ( buf[ i ] <= 'Z' ) )
-	   buf[ i ] += 'a' - 'A';
-
-         if ( memcmp( buf, "reset", 5 ) == 0 ) {
-
-            printss( "Rebooting!!\r\n" );
-            reset();
-
+         while ( count > 0 ) {
+         
+            printss( "\n" );
+            printhex( ( unsigned long ) addr, 8 );
+            printss( " " );
+            
+            for ( i = 0; i < 16; i++, addr++ ) {
+            
+               printhex( *addr, 2 );
+               printss( " " );
+            
+            }
+            
+            addr -= 16;
+            
+            for ( i = 0; i < 16; i++, addr++ ) {
+            
+               printsss( addr, 1 );
+               checksum += *addr;
+            
+            }
+            
+            count -= 16;
+         
          }
-         
-         else if ( memcmp( buf, "memcmp ", 7 ) == 0 ) {
-         
-            for ( i = 0; ( buf[ 7 + i ] && ( buf[ 7 + i ] != ' ' ) ); i++ )
-	   s1[ i ] = buf[ 7 + i ];
-	buf[ 7 + i ]= '\0';
-	
-	printss( "s1=" );
-            printss( s1 );
-            printss( "\r\n" );
 
-         }
-         
-         else
-            printss( "Bad command or file name.\r\n" );
-
-         count = 0;
+         printss( "\nChecksum = " );
+         printhex( checksum, 2 );
          
       }
+      
+      else if ( ( buf == 'f' ) || ( buf == 's' ) ) {
+      
+         if ( gethex( ( void * ) &addr, 8, ( buf == 's' ) ? 0 : -1 ) != 0 )
+            continue;
 
-   }
+         addr = ( char * ) ( ( unsigned long ) addr & 0xFFFFFFF0 );
 
-   /*my_print("Stage 3 C Program!!");*/
-   /*pokeb( 0xB8B90, 0x58 );*/
-   /*stackdump( 0xB8B90, 0x58 );*/
-return 0;
-   char j;
-   //unsigned long i;
+         for ( i = 0; ; i++, addr++ ) {
+         
+            if ( ( i % 16 == 0 ) && ( buf != 's' ) ) {
+            
+               printss( "\n" );
+               printhex( ( unsigned long ) addr, 8 );
+            
+            }
+            
+            if ( gethex( ( void * ) &count, 2, ( buf == 's' ) ? 0 : -1 ) != 0 )
+               break;
+      
+            *addr = *( ( char * ) &count );
+      
+         }
+      
+      }
+      
+      else if ( buf == 'i' ) {
+      
+         if ( gethex( ( void * ) &addr, 4, -1 ) != 0 )
+            continue;
+         
+         printss( "\n" );
+         printhex( inb( ( unsigned long ) addr ), 2 );
+      
+      }
+         
+      else if ( buf == 'o' ) {
+      
+         if ( gethex( ( void * ) &addr, 4, -1 ) != 0 )
+            continue;
+         
+         if ( gethex( ( void * ) &count, 2, -1 ) != 0 )
+            continue;
+         
+         outb( ( unsigned long ) addr, count );
+      
+      }
+      
+      else if ( buf == 'm' ) {
+      
+         if ( gethex( ( void * ) &addr, 8, -1 ) != 0 )
+            continue;
+         
+         printss( "\n" );
+         printhex( *addr, 2 );
+         
+         if ( gethex( ( void * ) &count, 2, -1 ) != 0 )
+            continue;
+         
+         *addr = count;
+      
+      }
+      
+      else if ( buf == 'r' ) {
+         
+         if ( gethex( ( void * ) &lba_sector, 8, -1 ) != 0 )
+            continue;
+         
+         if ( gethex( ( void * ) &num_blocks, 2, -1 ) != 0 )
+            continue;
+         
+         int13h_read( lba_sector, num_blocks );
 
-   for ( i = 0; i < 48; i++ ) {
+      }
+      
+      else if ( buf == 'w' ) {
+         
+         if ( gethex( ( void * ) &lba_sector, 8, -1 ) != 0 )
+            continue;
+         
+         if ( gethex( ( void * ) &num_blocks, 2, -1 ) != 0 )
+            continue;
+         
+         int13h_write( lba_sector, num_blocks );
 
-      j = peekb( 0x00010100 + i );
-   //  printhex( j, i );
+      }
+      
+      else if ( buf == '?' ) {
+         
+         printss( "\nInternal commands:" );
+         printss( "\nb                           - reboot" );
+         printss( "\nc <addr>                    - call function" );
+         printss( "\nd <addr> <count>            - dump range of memory" );
+         printss( "\nf <addr>                    - fill range of memory" );
+         printss( "\ni <port>                    - read byte from I/O port" );
+         printss( "\nm <addr>                    - modify memory location" );
+         printss( "\no <port> <byte>             - write byte to I/O port" );
+         printss( "\nr <lba_sector> <num_blocks> - read disk sector(s) to 0x00040000" );
+         printss( "\ns <addr>                    - \"silent\" fill (same as f without echo)" );
+         printss( "\nw <lba_sector> <num_blocks> - write disk sector(s) from 0x00040000" );
+         
+      }
 
    }
 

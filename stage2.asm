@@ -1,9 +1,4 @@
-;/****************************************************************************
-;       file load.asm
-;****************************************************************************/
 [BITS 16]
-
-TTY	equ 0x03F8
 
 [GLOBAL _start]
 _start:
@@ -22,30 +17,6 @@ mov byte [es:0x0918],'o'
 mov byte [es:0x0919],0x7c
 mov byte [es:0x091a],' '
 mov byte [es:0x091b],0x7c
-
-
-
-
-; Setup Device Address Packet (DAP)
-;sub	sp, 0x10
-;mov	si, sp
-;mov word	[si+0x00], 0x0010	; Reserved byte + 16-byte packet size
-;mov word	[si+0x02], 0x0001	; Reserved byte + 1 block to transfer
-;mov word	[si+0x04], 0x1000	; Offset of transfer buffer
-;mov word	[si+0x06], 0x4000	; Segment of transfer buffer
-;mov word	[si+0x08], 0x5EB1	; Logical block address (low word)
-;mov word	[si+0x0A], 0x02ED	; Logical block address (high word)
-;mov word	[si+0x0C], 0x0000       ; Logical block address (MSB)
-;mov word	[si+0x0E], 0x0000       ; Restrict logical block address to 4TB
-
-; Send request to BIOS
-;mov	ah, 0x42                    ; Extended read
-;mov	dl, 0x80
-;int	0x13
-
-
-
-
 mov byte [es:0x091c],'W'
 mov byte [es:0x091d],0x7c
 mov byte [es:0x091e],'o'
@@ -65,14 +36,14 @@ mov byte [es:0x0927],0x7c
 ; (as the stosw loop below initially zeroes all GDT entries). Real code
 ; and data sections are byte-granular, 16-bit with a 64kB limit.
 
-GDT_NULL	equ	0
+GDT_NULL	   equ	0
 GDT_RL_CODE	equ	1
 GDT_RL_DATA	equ	2
 GDT_LN_CODE	equ	3
 GDT_LN_DATA	equ	4
-GDT_NUM	equ	5
+GDT_NUM	   equ	5
 GDT_RECSZ	equ	8
-GDT_BASE	equ	0x10000
+GDT_BASE	   equ	0x10000
 
 mov	ax, GDT_BASE >> 4
 mov	ds, ax
@@ -83,12 +54,12 @@ mov	cx, ( GDT_NUM * GDT_RECSZ ) / 2
 cld
 rep	stosw
 mov word	[ GDT_RL_CODE * GDT_RECSZ + 0 ], 0xFFFF	; 1MB/4GB limit
-mov word	[ GDT_RL_CODE * GDT_RECSZ + 2 ], 0x0000	; Base 0x30000
-mov byte	[ GDT_RL_CODE * GDT_RECSZ + 4 ], 0x03
+mov word	[ GDT_RL_CODE * GDT_RECSZ + 2 ], 0x0100	; Base 0x10100
+mov byte	[ GDT_RL_CODE * GDT_RECSZ + 4 ], 0x01
 mov byte	[ GDT_RL_CODE * GDT_RECSZ + 5 ], 0x9A	; Present, ring 0, code, non-conforming & readable
 mov word	[ GDT_RL_DATA * GDT_RECSZ + 0 ], 0xFFFF	; 1MB/4GB limit
-mov word	[ GDT_RL_DATA * GDT_RECSZ + 2 ], 0x0000	; Base 0x30000
-mov byte	[ GDT_RL_CODE * GDT_RECSZ + 4 ], 0x03
+mov word	[ GDT_RL_DATA * GDT_RECSZ + 2 ], 0x0100	; Base 0x10100
+mov byte	[ GDT_RL_CODE * GDT_RECSZ + 4 ], 0x01
 mov byte	[ GDT_RL_DATA * GDT_RECSZ + 5 ], 0x92	; Present, ring 0, data, writeable
 mov word	[ GDT_LN_CODE * GDT_RECSZ + 0 ], 0xFFFF	; 1MB/4GB limit
 mov byte	[ GDT_LN_CODE * GDT_RECSZ + 5 ], 0x9A	; Present, ring 0, code, non-conforming & readable
@@ -101,7 +72,7 @@ mov dword	[ GDT_NUM * GDT_RECSZ + 2 ], GDT_BASE
 lgdt	[ GDT_NUM * GDT_RECSZ + 0 ]
 
 push dword	0				; Zero EFLAGS (interrupts off,
-popfd					; IOPL = 0, NT bit = 0)
+popfd					      ; IOPL = 0, NT bit = 0)
 
 mov	eax, cr0				; Enter protected mode
 or	al, 1
@@ -124,253 +95,188 @@ mov	esp, 0x80000
 mov byte	[es:dword 0xB891A],'F'
 mov byte	[es:dword 0xB891B],0x7c
 
-mov	al, '^'
-call putcc
-
 mov byte [es:dword 0xB891c],'@'
 mov byte [es:dword 0xB891d],0x7c
-
-;call	0x00020200
 
 [EXTERN main]
 call main
 
+stall_loop:
 hlt
+jmp stall_loop
 
-; putcc: Sends one character to the console
-;
-; AL = Character
-; Alters: AX
-
-[GLOBAL putcc]
-putcc:
-
-push	edx
-
-mov	ah, al
-
-cmp	ah, 0x0A
-jnz	putcc_noendl
-mov	ah, 0x0D
-mov	dx, TTY+LSR
-
-putcc_wait1:
-in	al, dx
-test	al, 0x20
-jz	putcc_wait1
-mov	al, ah
-mov	dx, TTY
-out	dx, al
-mov	ah, 0x0A
-
-putcc_noendl:
-mov	dx,TTY+LSR
-
-putcc_wait2:
-in	al, dx
-test	al, 0x20
-jz	putcc_wait2
-mov	al, ah
-mov	dx, TTY
-out	dx, al
-
-pop	edx
-
-ret	
-
-; getcc: retrieves one character from the console
-;        if echo is non-zero, the character is echoed
-;
-; AL = Character retrieved
-; Alters: AX
-
-[GLOBAL getcc]
-getcc:
-
-push	edx
-
-mov	dx, TTY+LSR
-
-getcc_wait1:
-in	al, dx
-test	al, 0x01
-jz	getcc_wait1
-mov	dx, TTY
-in	al, dx
-mov	ah, al
-mov	dx, TTY+LSR
-
-getcc_wait2:
-in	al, dx
-test	al, 0x20
-jz	getcc_wait2
-mov	al, ah
-mov	dx, TTY
-out	dx, al
-
-pop	edx
-
+; inb: Read byte from input port
+[GLOBAL inb]
+inb:
+push  edx
+mov   dx, ax
+in    al, dx
+pop   edx
 ret
 
+; irq_disable: mask interrupts
+[GLOBAL irq_disable]
+irq_disable:
+cli
+ret
+
+; irq_enable: unmask interrupts
+[GLOBAL irq_enable]
+irq_enable:
+sti
+ret
+
+; reset: assuming GDT has not been changed, will triple-fault & reset CPU
 [GLOBAL reset]
 reset:
 jmp dword	0x0000:0x00000000
 
+; callfn: call a function somewhere in RAM, useful to transfer to Stage 3
+[GLOBAL callfn]
+callfn:
+call eax
+ret
 
+; get_eip: returns the value of EIP, from more-or-less where the function was called
+[GLOBAL get_eip]
+get_eip:
+pop   eax
+push  eax
+ret
 
+; some useful data
+[GLOBAL part_start_lba]
+part_start_lba    equ   0x00008118
+[GLOBAL part_length]
+part_length       equ   0x0000811C
+[GLOBAL bios_disk_number]
+bios_disk_number  equ   0x00008120
+[GLOBAL disk_address_packet]
+disk_address_packet  equ   0x00010140
 
+real_mode_segment	      equ	0x1010
+real_mode_entry	      equ	0x0100
+real_mode_registers	   equ	0x0028
+real_mode_sw_int_opcode	equ	0x003A
 
+[GLOBAL real_mode_linear_base]
+real_mode_linear_base	equ	real_mode_segment << 4
+[GLOBAL real_mode_linear_esp]
+real_mode_linear_esp	   equ	real_mode_linear_base + 0x003C
+real_mode_linear_entry	equ	real_mode_linear_base + real_mode_entry
 
-;jmp	dword LINEAR_CODE_SEL:0x20000
+[GLOBAL real_mode_linear_sw_int]
+real_mode_linear_sw_int	equ	real_mode_linear_base + real_mode_registers
 
-mov	byte [es:dword 0xB8926],'O'
-mov	byte [es:dword 0xB8927],0x7c
+; real_mode_sw_int_call: run a SW interrupt in real mode
+; Linear data addresses
+; 0x10128 Flags, DI, SI, BP, --, BX, DX, CX, AX (18 bytes, -- would be SP but in fact, SP is not popped)
+; 0x1013A Interrupt instruction (2 bytes, CDxx, to be copied into code segment and executed blind)
+; 0x1013C ESP temporary storage (4 bytes)
+[GLOBAL real_mode_sw_int_call]
+real_mode_sw_int_call:
 
-mov     eax, 0x12123434
-push    eax
-mov     eax, 0x56567878
+pushad					; Save registers for later
+pushfd					; Save flags for later
 
-;push	ebp
-mov	ebp, esp
+mov	[real_mode_linear_esp], esp		; Save ESP so we can ret later!
 
-mov	byte [es:dword 0xB8928],'P'
-mov	byte [es:dword 0xB8929],0x7c
+push dword	0x00000000				; Zero EFLAGS (interrupts off,
+popfd					; IOPL = 0, NT bit = 0)
 
-push	eax
-mov	eax, esp
-push	eax
-mov	eax, 0x89ABCDEF
-push	eax
-mov	eax, 0x01234567
-push	eax
+xor	eax, eax				; Clear high words of registers just in case
+mov	ebx, eax
+mov	ecx, eax
+mov	edx, eax
+mov	esp, eax
+mov	ebp, eax
+mov	esi, eax
+mov	edi, eax
 
-mov	eax, [ebp+8] ; Get second parameter from stack
-push	eax
+REAL	equ	real_mode_entry + ( go_real - _start )
+jmp	GDT_RL_CODE * GDT_RECSZ:REAL		; Switch to 16-bit code
 
-mov	edi, 0xB8000
-cld
-mov	edx, 16
+[BITS 16]
 
-stackdumploop1:
-pop	ebx
-mov	ecx, 0x08
+go_real:
 
-stackdumploop2:
-rol	ebx, 4
-mov	al, bl
-and	al, 0x0F
-cmp	al, 10
-jb	stackdumpnohex
-add	al, 7
-stackdumpnohex:
-add	al, 0x30
-stosb
-mov	al, 0x4C
-stosb
-loop	stackdumploop2
+mov	ax, GDT_RL_DATA * GDT_RECSZ		; Load 16-bit segments
+mov	ds, ax
+mov	es, ax
+mov	fs, ax
+mov	gs, ax
+mov	ss, ax
 
-add	edi, 144
-dec	edx
-jnz	stackdumploop1
+mov	eax, cr0				; Enter real mode
+and	al, 0xFE
+mov	cr0, eax
 
-stackdumphalt:
-hlt
-jmp	stackdumphalt
+[GLOBAL XXX]
+XXX   equ   real_mode_entry + ( go_real_for_real - _start )
 
+jmp	real_mode_segment:XXX		; Need it!!!
 
-[GLOBAL peekb]
-peekb:
-	push edi
+go_real_for_real:
 
-	mov byte [es:dword 0xB891e],'8'
-	mov byte [es:dword 0xB891f],0x7c
+mov	ax, cs				; Need these too!!!
+mov	ds, ax
+mov	es, ax
+mov	fs, ax
+mov	gs, ax
+mov	ss, ax
 
-	mov  edi, eax
-	mov  byte al, [es:edi]
-	and  eax, 0x000000FF
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Now in real mode
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-	pop  edi
-	ret
+mov	ax, [real_mode_sw_int_opcode]		; Setup interrupt instruction
 
-[GLOBAL pokeb]
-pokeb:
-	mov byte [es:dword 0xB891a],'6'
-	mov byte [es:dword 0xB891b],0x7c
-	push ebp
-	mov  ebp, esp
-	push ebx
-	push edi
+[GLOBAL YYY]
+YYY   equ   real_mode_entry + ( software_interrupt - _start )
 
-	mov  ebx, [bp+8] ; Get second parameter from stack
-	mov  edi, eax
-	mov  byte [es:edi], bl
+mov	[YYY], ax
 
-	pop  edi
-	pop  ebx
-	pop  ebp
-	mov byte [es:dword 0xB891c],'7'
-	mov byte [es:dword 0xB891d],0x7c
-	ret
+mov	sp, real_mode_registers			; Point to setup structure
+popf					; Setup flags (should have been set by caller)
+popa					; Setup registers (also set by caller)
 
-[GLOBAL my_print]
-my_print:
-	mov byte [es:dword 0xB8916],'4'
-	mov byte [es:dword 0xB8917],0x7c
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Kludge below, beware! Best to have a more sensible stack allocation
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-	push  edi
-	push  esi
-	push  eax
+add   sp, 0xF000
+software_interrupt:
+dw	0x9090         ; Blindly execute instruction at 0x003A
+                  ; 0x90 = NOP, just in case
+sub   sp, 0xF000
 
-	mov   esi, eax
-	mov   edi, 0x000B8A50
-	cld
-my_print_loop:
-	lodsb
-	cmp   al, 0x00
-	jz    my_print_exit
-	stosb
-	mov   al, 0x59
-	stosb
-	jmp   my_print_loop
+pusha					; Save registers (to return to caller)
+pushf					; Save flags
 
-my_print_exit:
-	pop   eax
-	pop   esi
-	pop   edi
+push dword	0x00000000				; Zero EFLAGS (interrupts off,
+popfd					; IOPL = 0, NT bit = 0)
 
-	mov byte [es:dword 0xB8918],'5'
-	mov byte [es:dword 0xB8919],0x7c
-	ret
+mov	eax, cr0				; Enter protected mode
+or	   al, 0x01
+mov	cr0, eax
 
-DLLB	equ 0
-IER	equ 1
-DLHB	equ 1
-IIR	equ 2
-FCR	equ 2
-LCR	equ 3
-MCR	equ 4
-LSR	equ 5
-MSR	equ 6
-SCRATCH	equ 7
+PROTECTED	equ	real_mode_linear_entry + ( go_protected - _start )
+jmp dword	GDT_LN_CODE * GDT_RECSZ:PROTECTED		; Switch to 32-bit code
 
-TTYINITCOUNT	equ 7
+[BITS 32]
 
-ttyinitdata:
-DB	0x00	; Disable interrupts
-DB	0x00
-DB	0x80	; Set baud and framing parameters
-DB	0x01	; 115200
-;DB	0x0C	; 9600
-;DB	0x30	; 2400
-DB	0x00
-DB	0x03	; 8N1
-DB	0xE7	; Enable FIFOs (if any)
+go_protected:
 
-ttyinitport:
-DW	TTY+LCR
-DW	TTY+IER
-DW	TTY+LCR
-DW	TTY+DLLB
-DW	TTY+DLHB
-DW	TTY+LCR
-DW	TTY+FCR
+mov	eax, GDT_LN_DATA * GDT_RECSZ
+mov	ds, eax
+mov	es, eax
+mov	fs, eax
+mov	gs, eax
+mov	ss, eax
+
+mov	esp, [real_mode_linear_esp]		; Restore ESP
+
+popfd					; Restore flags
+popad					; Restore registers
+
+ret
