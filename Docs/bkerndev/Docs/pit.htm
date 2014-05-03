@@ -1,0 +1,241 @@
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+		<title>
+			Bran's Kernel Development Tutorial: The Programmable Interval Timer
+		</title>
+		<link href="layout.css" type="text/css" rel="stylesheet">
+	</head>
+
+	<body>
+		<h2>The PIT: A System Clock</h2>
+
+		<p>
+			The Programmable Interval Timer (PIT, model 8253 or 8254), also called the System
+			Clock, is a very useful chip for accurately generating interrupts at regular time
+			intervals. The chip itself has 3 channels: Channel 0 is tied to is tied to IRQ0,
+			to interrupt the CPU at predictable and regular times, Channel 1 is system specific,
+			and Channel 2 is connected to the system speaker. As you can see, this single chip
+			offers several very important services to the system.
+		</p>
+
+		<p>
+			The only channels that you should every be concerned with are Channels 0 and 2. You
+			may use Channel 2 in order to make the computer beep. In this section of the
+			tutorial, we are only concerned with Channel 0 - mapped to IRQ0. This single channel
+			of the timer will allow you to accurately schedule new processes later on, as well
+			as allow the current task to wait for a certain period of time (as will be
+			demonstrated shortly). By default, this channel of the timer is set to generate an
+			IRQ0 18.222 times per second. It is the IBM PC/AT BIOS that defaults it to this. A
+			reader of this tutorial has informed me that this 18.222Hz tick rate was used in order
+			for the tick count to cycle at 0.055 seconds. Using a 16-bit timer tick counter, the
+			counter will overflow and wrap around to 0 once every hour.
+		</p>
+
+		<p>
+			To set the rate at which channel 0 of the timer fires off an IRQ0, we must use our
+			outportb function to write to I/O ports. There is a Data register for each of the
+			timer's 3 channels at 0x40, 0x41, and 0x42 respectively, and a Command register at
+			0x43. The data rate is actually a 'divisor' register for this device. The timer will
+			divide it's input clock of 1.19MHz (1193180Hz) by the number you give it in the data
+			register to figure out how many times per second to fire the signal for that
+			channel. You must first select the channel that we want to update using the command
+			register before writing to the data/divisor register. What is shown in the following
+			two tables is the bit definitions for the command register, as well as some timer
+			modes.
+		</p>
+
+		<table>
+			<tr>
+				<td width="300" valign="top">
+					<table>
+						<tr>
+							<td>
+								<table cols="25, 25, 25, 25, 50, 25, 25">
+									<tr>
+										<td width="25" align="left">7</td>
+										<td width="25" align="right">6</td>
+										<td width="25" align="left">5</td>
+										<td width="25" align="right">4</td>
+										<td width="50" align="left">3</td>
+										<td width="25" align="right">1</td>
+										<td width="25" align="center">0</td>
+									</tr>
+							</table>
+							</td>
+						</tr>
+						<tr>
+							<td>
+								<table border="1" bordercolor="#808080" cols="50, 50, 75, 25">
+									<tr>
+										<td width="50">CNTR</td>
+										<td width="50">RW</td>
+										<td width="75">Mode</td>
+										<td width="25">BCD</td>
+									</tr>
+								</table>
+							</td>
+						</tr>
+						<tr>
+							<td>
+								CNTR - Counter # (0-2)<br>
+								RW - Read Write mode<br>
+								    (1 = LSB, 2 = MSB, 3 = LSB then MSB)<br>
+								Mode - See right table<br>
+								BCD - (0 = 16-bit counter,<br>
+								    1 = 4x BCD decade counters)
+							</td>
+						</tr>
+					</table>				
+				</td>
+				<td>
+					<table border="1" bordercolor="#808080">
+						<tr>
+							<th>Mode</th>
+							<th>Description</th>
+						</tr>
+						<tr>
+							<td>0</td>
+							<td>Interrupt on terminal count</td>
+						</tr>
+						<tr>
+							<td>1</td>
+							<td>Hardware Retriggerable one shot</td>
+						</tr>
+						<tr>
+							<td>2</td>
+							<td>Rate Generator</td>
+						</tr>
+						<tr>
+							<td>3</td>
+							<td>Square Wave Mode</td>
+						</tr>
+						<tr>
+							<td>4</td>
+							<td>Software Strobe</td>
+						</tr>
+						<tr>
+							<td>5</td>
+							<td>Hardware Strobe</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+		</table>
+		<b>Bit definitions for 8253 and 8254 chip's Command Register located at 0x43</b>
+
+		<p>
+			To set channel 0's Data register, we need to select counter 0 and some modes in the
+			Command register first. The divisor value we want to write to the Data register is
+			a 16-bit value, so we will need to transfer both the MSB (Most Significant Byte)
+			and LSB (Least Significant Byte) to the data register. This is a 16-bit value, we
+			aren't sending data in BCD (Binary Coded Decimal), so the BCD field should be set
+			to 0. Finally, we want to generate a Square Wave: Mode 3. The resultant byte that
+			we should set in the Command register is 0x36. The above 2 paragraphs and tables
+			can be summed up into this function. Use it if you wish, we won't use it in this
+			tutorial to keep things simple. For accurate and easy timekeeping, I recommend
+			setting to 100Hz in a real kernel.
+		</p>
+		
+		<pre class="code">
+void timer_phase(int hz)
+{
+    int divisor = 1193180 / hz;       /* Calculate our divisor */
+    outportb(0x43, 0x36);             /* Set our command byte 0x36 */
+    outportb(0x40, divisor & 0xFF);   /* Set low byte of divisor */
+    outportb(0x40, divisor >> 8);     /* Set high byte of divisor */
+}
+		</pre>
+		<pre class="codecaption">Not bad, eh?</pre>
+
+		<p>
+			Create a file called 'timer.c', and add it to your 'build.bat' as you've been shown
+			in the previous sections of this tutorial. As you analyse the following code, you
+			will see that we keep track of the amount of ticks that the timer has fired. This
+			can be used as a 'system uptime counter' as your kernel gets more complicated. The
+			timer interrupt here simply uses the default 18.222Hz to figure out when it should
+			display a simple "One second has passed" message every second. If you decide to use
+			the 'timer_phase' function in your code, you should change the 'timer_ticks % 18 ==
+			0' line in 'timer_handler' to 'timer_ticks % 100 == 0' instead. You could set the
+			timer phase from any function in the kernel, however I recommend setting it in
+			'timer_install' if anything, to keep things organized.
+		</p>
+
+		<pre class="code">
+#include &lt system.h &gt
+
+/* This will keep track of how many ticks that the system
+*  has been running for */
+int timer_ticks = 0;
+
+/* Handles the timer. In this case, it's very simple: We
+*  increment the 'timer_ticks' variable every time the
+*  timer fires. By default, the timer fires 18.222 times
+*  per second. Why 18.222Hz? Some engineer at IBM must've
+*  been smoking something funky */
+void timer_handler(struct regs *r)
+{
+    /* Increment our 'tick count' */
+    timer_ticks++;
+
+    /* Every 18 clocks (approximately 1 second), we will
+    *  display a message on the screen */
+    if (timer_ticks % 18 == 0)
+    {
+        puts("One second has passed\n");
+    }
+}
+
+/* Sets up the system clock by installing the timer handler
+*  into IRQ0 */
+void timer_install()
+{
+    /* Installs 'timer_handler' to IRQ0 */
+    irq_install_handler(0, timer_handler);
+}
+		</pre>
+		<pre class="codecaption">Example of using the system timer: 'timer.c'</pre>
+
+		<p>
+			Remember to add a call to 'timer_install' in the 'main' function in 'main.c'.
+			Having trouble? Remember to add a function prototype of 'timer_install' to
+			'system.h'! The next bit of code is more of a demonstration of what you can do
+			with the system timer. If you look carefully, this simple function waits in a
+			loop until the given time in 'ticks' or timer phases has gone by. This is
+			almost the same as the standard C library's function 'delay', depending on your
+			timer phase that you set:
+		</p>
+
+		<pre class="code">
+/* This will continuously loop until the given time has
+*  been reached */
+void timer_wait(int ticks)
+{
+    unsigned long eticks;
+
+    eticks = timer_ticks + ticks;
+    while(timer_ticks < eticks);
+}
+</pre>
+		<pre class="codecaption">If you wish, add this to 'timer.c' and a prototype to 'system.h'</pre>
+
+		<p>
+			Next, we will discuss how to use the keyboard. This involves installing a custom
+			IRQ handler just like this tutorial, with hardware I/O on each interrupt.
+		</p>
+
+		<table cols="150, *, 150" width="100%">
+			<tr>
+				<td align="left" width="150">
+					<a href="irqs.htm">&lt&lt IRQs and the PICs</a>
+				</td>
+				<td align="center" width="*">
+					<a href="mailto:friesenb@gmail.com">Contact Brandon F.</a>
+				</td>
+				<td align="right" width="150">
+					<a href="keyboard.htm">The Keyboard &gt&gt</a>
+				</td>
+			</tr>
+		</table>
+	</body>
+</html>

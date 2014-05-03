@@ -1,0 +1,83 @@
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+		<title>
+			Bran's Kernel Development Tutorial: The Keyboard
+		</title>
+		<link href="layout.css" type="text/css" rel="stylesheet">
+	</head>
+
+	<body>
+		<h2>What's Left</h2>
+
+		<p>
+			What you do next to your kernel is completely up to you. The next thing you should
+			think of writing is a memory manager. A memory manager will allow you to grab
+			chunks of memory so that you can dynamically allocate and free memory as you need
+			it. Using a memory manager, you can use more complicated data structures such as
+			linked lists and binary trees to allow for more efficient storage and manipulation
+			of data. It's also a way of preventing applications from writing to kernel pages,
+			which is a feature of protection.
+		</p>
+
+		<p>
+			It's possible to write a VGA driver, also. Using a VGA driver, you can set up
+			different graphics modes in your kernel, allowing higher resolutions and graphical
+			display options such as buttons and images. If you want to go further, you could
+			eventually look into VESA video modes for high color and higher resolutions.
+		</p>
+
+		<p>
+			You could eventually write a device interface which would allow you to load or
+			unload kernel 'modules' as you need them. Add support for filesystems and disk
+			drives so that you can access files off disks and open applications.
+		</p>
+		
+		<p>
+			It's very possible that you add multitasking support and design scheduling algorithms
+			to give certain tasks higher priority and longer time to run according to what the
+			application is designed to run at. The multitasking system closely relies on your
+			memory manager to give each task a separate space in memory.
+		</p>
+
+		<h3>Example kernel online source tree</h3>
+		
+		<p>
+			<img src="asm_icon.PNG"><a href="../Sources/start.asm">start.asm</a><br>
+			<img src="c_icon.PNG"><a href="../Sources/gdt.c">gdt.c</a><br>
+			<img src="c_icon.PNG"><a href="../Sources/idt.c">idt.c</a><br>
+			<img src="c_icon.PNG"><a href="../Sources/irq.c">irq.c</a><br>
+			<img src="c_icon.PNG"><a href="../Sources/isrs.c">isrs.c</a><br>
+			<img src="c_icon.PNG"><a href="../Sources/kb.c">kb.c</a><br>
+			<img src="c_icon.PNG"><a href="../Sources/main.c">main.c</a><br>
+			<img src="c_icon.PNG"><a href="../Sources/scrn.c">scrn.c</a><br>
+			<img src="c_icon.PNG"><a href="../Sources/timer.c">timer.c</a><br>
+			<img src="h_icon.PNG"><a href="../Sources/include/system.h">include/system.h</a><br>
+			<img src="ld_icon.PNG"><a href="../Sources/link.ld">link.ld</a><br>
+			<img src="bat_icon.PNG"><a href="../Sources/build.bat">build.bat</a><br>
+			<img src="disk_icon.PNG"><a href="../Sources/dev_kernel_grub.img">dev_kernel_grub.img</a><br>
+		</p>
+		
+		<p>Get the whole tutorial and example kernel <a href="../bkerndev.zip">here</a> (110KBytes).</p>
+
+		<p>
+			I hope that this tutorial has given you a more thorough understanding of some of the
+			various low-level items involved in creating a kernel: a driver for your processor
+			and memory.
+		</p>
+
+		<table cols="150, *, 150" width="100%">
+			<tr>
+				<td align="left" width="150">
+					<a href="keyboard.htm">&lt&lt The Keyboard</a>
+				</td>
+				<td align="center" width="*">
+					<a href="mailto:friesenb@gmail.com">Contact Brandon F.</a>
+				</td>
+				<td align="right" width="150">
+					<a href="http://www.osdever.net/">www.OSDever.net &gt&gt</a>
+				</td>
+			</tr>
+		</table>
+	</body>
+</html>
