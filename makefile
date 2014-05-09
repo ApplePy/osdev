@@ -40,3 +40,6 @@ stage3.o: stage3.asm
 
 fillprep: fillprep.c
 	gcc -o fillprep fillprep.c
+
+clean:
+	rm -f *.bin *.o *.com
