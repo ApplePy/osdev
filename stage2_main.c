@@ -10,6 +10,65 @@ void irq_enable();
 void reset();
 void real_mode_sw_int_call();
 
+void FATInitialize();
+
+#pragma pack(1)
+typedef struct fat_extBS_32
+{
+	//extended fat32 stuff
+	unsigned int		table_size_32;
+	unsigned short		extended_flags;
+	unsigned short		fat_version;
+	unsigned int		root_cluster;
+	unsigned short		fat_info;
+	unsigned short		backup_BS_sector;
+	unsigned char 		reserved_0[12];
+	unsigned char		drive_number;
+	unsigned char 		reserved_1;
+	unsigned char		boot_signature;
+	unsigned int 		volume_id;
+	unsigned char		volume_label[11];
+	unsigned char		fat_type_label[8];
+
+}/*__attribute__(packed) */fat_extBS_32_t;
+
+typedef struct fat_extBS_16
+{
+	//extended fat12 and fat16 stuff
+	unsigned char		bios_drive_num;
+	unsigned char		reserved1;
+	unsigned char		boot_signature;
+	unsigned int		volume_id;
+	unsigned char		volume_label[11];
+	unsigned char		fat_type_label[8];
+
+}/*__attribute__((packed)) */fat_extBS_16_t;
+
+typedef struct fat_BS
+{
+	unsigned char 		bootjmp[3];
+	unsigned char 		oem_name[8];
+	unsigned short 	        bytes_per_sector;
+	unsigned char		sectors_per_cluster;
+	unsigned short		reserved_sector_count;
+	unsigned char		table_count;
+	unsigned short		root_entry_count;
+	unsigned short		total_sectors_16;
+	unsigned char		media_type;
+	unsigned short		table_size_16;
+	unsigned short		sectors_per_track;
+	unsigned short		head_side_count;
+	unsigned int 		hidden_sector_count;
+	unsigned int 		total_sectors_32;
+
+	//this will be cast to it's specific type once the driver actually knows what type of FAT this is.
+	unsigned char		extended_section[54];
+
+}/*__attribute__((packed)) */fat_BS_t;
+#pragma pop()
+
+/* from http://wiki.osdev.org/FAT */
+
 // For use with real_mode_sw_int_call function; holds register parameters
 // and interrupt type. It is also used to return any register values. All
 // general purpose registers (AX, BX, CX and DX) can also be accessed via
@@ -85,6 +144,9 @@ extern unsigned long YYY;
 extern Disk_Address_Packet disk_address_packet;
 
 unsigned short *video = ( unsigned short * ) 0xB8000;
+
+unsigned short fat_type = 0;
+fat_BS_t bootsect;
 
 #define TTY 0x03F8
 #define DLLB	 0
@@ -624,4 +686,118 @@ int main(void) {
 
    return 0;
 
+}
+
+/*//////////////////////////////////////////////////////////*/
+
+
+void FATInitialize()
+{
+	int result = int13h_read(1, 1); //reads the first sector of the FAT
+
+	fat_BS_t* bootstruct = 0x40000;
+
+	unsigned int total_clusters = bootstruct->total_sectors_16 / bootstruct->sectors_per_cluster;
+
+	if (total_clusters == 0)
+	{
+		total_clusters = bootstruct->total_sectors_32 / bootstruct->sectors_per_cluster;
+	}
+
+	if (total_clusters < 4085)
+	{
+		fat_type = 12;
+	}
+	else
+	{
+		if (total_clusters < 65525)
+		{
+			fat_type = 16;
+		}
+		else
+		{
+			fat_type = 32;
+		}
+	}
+
+	memcpy(&bootsect, bootstruct, 512);
+}
+
+//strcpy(char* dest, char* src, );
+
+int getFile(char* filePath, char** filePointer)
+{
+	char fileNamePart[255] = { '\0' };
+	unsigned short start = 0;
+
+	for (unsigned int iterator = 0; filePath[iterator] != '\0'; iterator++)
+	{
+		if (filePath[iterator] == '\\')
+		{
+			memcpy(fileNamePart, filePath + start, iterator - start - 1); //hacked-together strcpy...
+			start = iterator + 1;
+		}
+	}
+
+//#define clusterSize 4096 //bytes
+//
+//	unsigned char* table [clusterSize]= 0x40000;
+//
+//
+//	int13h_read(512, );
+}
+
+//notes to self: figure out what happens when the cluster that holds a directory needs to hold info for more subdirectories/files than there is space in that cluster
+
+//read FAT table
+//This function deals in relative data clusters, and disallows access to aboslute clusters 1 and 2.
+void FATRead(unsigned int clusterNum)
+{
+	if (clusterNum < 2) //block access to absolute clusters 0 and 1
+		return;
+
+	if (fat_type == 32)
+	{
+		fat_extBS_32_t* fat32Data = (fat_extBS_32_t*)(bootsect.extended_section);
+
+		unsigned int start_sect = (clusterNum - 2) * bootsect.sectors_per_cluster + bootsect.reserved_sector_count + fat32Data->table_size_32 * bootsect.table_count; //translation: get the start sector of the cluster wanted, but since there are reserved sectors for the boot sector, etc. as well as the FAT, add on the sizes of the reserved and the FAT to skip them.
+
+		int13h_read(start_sect, bootsect.sectors_per_cluster);
+	}
+	else if (fat_type == 16 || fat_type == 12)
+	{
+		unsigned int start_sect = (clusterNum - 2) * bootsect.sectors_per_cluster + bootsect.reserved_sector_count + bootsect.table_size_16 * bootsect.table_count; //translation: get the start sector of the cluster wanted, but since there are reserved sectors for the boot sector, etc. as well as the FAT, add on the sizes of the reserved and the FAT to skip them.
+
+		int13h_read(start_sect, bootsect.sectors_per_cluster);
+	}
+	else
+		NULL; //Error
+}
+
+
+
+//Reads one cluster and dumps it to 0x40000
+//NOTE: Absolute data clusters start at #2, not 1 or 0, while relative cluster numbers start relative to the first data cluster (2). E.g: The relative cluster number of the first data cluster is 0.
+//This function deals in relative data clusters, and disallows access to absolute clusters 1 and 2.
+void clusterRead(unsigned int clusterNum)
+{
+	if (clusterNum < 2) //block access to absolute clusters 0 and 1
+		return;
+
+	if (fat_type == 32)
+	{
+		fat_extBS_32_t* fat32Data = (fat_extBS_32_t*)(bootsect.extended_section);
+
+		unsigned int start_sect = (clusterNum - 2) * bootsect.sectors_per_cluster + bootsect.reserved_sector_count + fat32Data->table_size_32 * bootsect.table_count; //translation: get the start sector of the cluster wanted, but since there are reserved sectors for the boot sector, etc. as well as the FAT, add on the sizes of the reserved and the FAT to skip them.
+
+		int13h_read(start_sect, bootsect.sectors_per_cluster);
+	}
+	else if (fat_type == 16 || fat_type == 12)
+	{
+		unsigned int start_sect = (clusterNum - 2) * bootsect.sectors_per_cluster + bootsect.reserved_sector_count + bootsect.table_size_16 * bootsect.table_count; //translation: get the start sector of the cluster wanted, but since there are reserved sectors for the boot sector, etc. as well as the FAT, add on the sizes of the reserved and the FAT to skip them.
+
+		int13h_read(start_sect, bootsect.sectors_per_cluster);
+	}
+	else
+		NULL; //Error
 }
