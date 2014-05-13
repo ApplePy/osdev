@@ -65,9 +65,26 @@ typedef struct fat_BS
 	unsigned char		extended_section[54];
 
 }/*__attribute__((packed)) */fat_BS_t;
-#pragma pop()
 
 /* from http://wiki.osdev.org/FAT */
+
+typedef struct directory_entry
+{
+	unsigned char file_name[11];
+	unsigned char attributes;
+	unsigned char reserved0;
+	unsigned char creation_time_tenths;
+	unsigned short creation_time;
+	unsigned short creation_date;
+	unsigned short last_accessed;
+	unsigned short high_bits;
+	unsigned short last_modification_time;
+	unsigned short last_modification_date;
+	unsigned short low_bits;
+	unsigned int file_size;
+
+} directory_entry_t;
+#pragma pop()
 
 // For use with real_mode_sw_int_call function; holds register parameters
 // and interrupt type. It is also used to return any register values. All
@@ -723,78 +740,125 @@ void FATInitialize()
 	memcpy(&bootsect, bootstruct, 512);
 }
 
-//strcpy(char* dest, char* src, );
-
-int getFile(char* filePath, char** filePointer)
+int getFile(const char* filePath, char** filePointer)
 {
 	char fileNamePart[255] = { '\0' };
-	unsigned short start = 0;
+	unsigned short start = 3;
+	directory_entry_t file_info;
 
-	for (unsigned int iterator = 0; filePath[iterator] != '\0'; iterator++)
+	//starting at 3 to skip the "C:\" bit
+	for (unsigned int iterator = 3; filePath[iterator] != '\0'; iterator++)
 	{
 		if (filePath[iterator] == '\\')
 		{
 			memcpy(fileNamePart, filePath + start, iterator - start - 1); //hacked-together strcpy...
+
+			unsigned int active_cluster = 2; //just a default cluster in case something goes haywire
+			
+			if (start == 3)
+				active_cluster = ((fat_extBS_32_t*)bootsect.extended_section)->root_cluster;
+
+			int retVal = directorySearch(fileNamePart, active_cluster, &file_info);
+
 			start = iterator + 1;
+			///THIS FUNCTION NOT FINISHED
+		}
+	}
+}
+
+//recieves the cluster to read for a directory and the requested file, and will iterate through the directory's clusters - returning the entry for the searched file/subfolder, or no file/subfolder
+//return value holds success or failure code, file holds directory entry if file is found
+int directorySearch(const char* filepart, const unsigned int cluster, directory_entry_t* file)
+{
+	clusterRead(cluster);
+	directory_entry_t* file_metadata = 0x40000;
+	unsigned int meta_pointer_iteratator_count = 0;
+
+	while (1)
+	{
+		if (strcpy(file_metadata->file_name, filepart) != 0) //STRCPY NOT IMPLEMENTED
+		{
+			if (meta_pointer_iteratator_count < bootsect.bytes_per_sector * bootsect.sectors_per_cluster / sizeof(directory_entry_t)-1) //if the pointer hasn't iterated outside of what that cluster can hold
+			{
+				file_metadata++;
+				meta_pointer_iteratator_count++;
+			}
+			else
+			{
+				unsigned int next_cluster = FATRead(cluster);
+
+				if (next_cluster >= 0x0FFFFFF8)
+					break;
+				else
+					return directorySearch(filepart, cluster, file);//search next cluster
+			}
+		}
+		else
+		{
+			memcpy(file, file_metadata, sizeof(directory_entry_t)); //copy found data to file
+			return 0;
 		}
 	}
 
-//#define clusterSize 4096 //bytes
-//
-//	unsigned char* table [clusterSize]= 0x40000;
-//
-//
-//	int13h_read(512, );
+	return -1;
 }
 
-//notes to self: figure out what happens when the cluster that holds a directory needs to hold info for more subdirectories/files than there is space in that cluster
-
 //read FAT table
-//This function deals in relative data clusters, and disallows access to aboslute clusters 1 and 2.
-void FATRead(unsigned int clusterNum)
+//This function deals in absolute data clusters
+int FATRead(unsigned int clusterNum)
 {
-	if (clusterNum < 2) //block access to absolute clusters 0 and 1
-		return;
+	int13h_read(bootsect.reserved_sector_count, bootsect.sectors_per_cluster * 2 - bootsect.reserved_sector_count); //reads the first two clusters, but exlcuding the reserved sectors.
+	clusterRead(1);
 
 	if (fat_type == 32)
 	{
-		fat_extBS_32_t* fat32Data = (fat_extBS_32_t*)(bootsect.extended_section);
+		unsigned char* FAT_table = 0x40000;
+		unsigned int fat_offset = clusterNum * 4;
 
-		unsigned int start_sect = (clusterNum - 2) * bootsect.sectors_per_cluster + bootsect.reserved_sector_count + fat32Data->table_size_32 * bootsect.table_count; //translation: get the start sector of the cluster wanted, but since there are reserved sectors for the boot sector, etc. as well as the FAT, add on the sizes of the reserved and the FAT to skip them.
+		unsigned int table_value = *(unsigned int*)(FAT_table + fat_offset) & 0x0FFFFFFF;
 
-		int13h_read(start_sect, bootsect.sectors_per_cluster);
+		return table_value;
+
+		//unsigned char FAT_table [cluster_size];
+		//unsigned int fat_offset = clusterNum * 4;
+		//unsigned int fat_sector = first_fat_sector + (fat_offset / (bootsect.bytes_per_sector * bootsect.sectors_per_cluster));
+		//unsigned int ent_offset = fat_offset % cluster_size;
+
+		//at this point you need to read from sector "fat_sector" on the disk into "FAT_table".
+
+		//remember to ignore the high 4 bits.
+		//unsigned int table_value = *(unsigned int*)&FAT_table[ent_offset] & 0x0FFFFFFF;
+
+		//the variable "table_value" now has the information you need about the next cluster in the chain.
 	}
 	else if (fat_type == 16 || fat_type == 12)
 	{
-		unsigned int start_sect = (clusterNum - 2) * bootsect.sectors_per_cluster + bootsect.reserved_sector_count + bootsect.table_size_16 * bootsect.table_count; //translation: get the start sector of the cluster wanted, but since there are reserved sectors for the boot sector, etc. as well as the FAT, add on the sizes of the reserved and the FAT to skip them.
-
-		int13h_read(start_sect, bootsect.sectors_per_cluster);
+		NULL; //not implemented
 	}
 	else
 		NULL; //Error
+
+	return -1;
 }
 
 
 
 //Reads one cluster and dumps it to 0x40000
 //NOTE: Absolute data clusters start at #2, not 1 or 0, while relative cluster numbers start relative to the first data cluster (2). E.g: The relative cluster number of the first data cluster is 0.
-//This function deals in relative data clusters, and disallows access to absolute clusters 1 and 2.
+//This function deals in absolute data clusters
 void clusterRead(unsigned int clusterNum)
 {
-	if (clusterNum < 2) //block access to absolute clusters 0 and 1
-		return;
-
 	if (fat_type == 32)
 	{
 		fat_extBS_32_t* fat32Data = (fat_extBS_32_t*)(bootsect.extended_section);
 
-		unsigned int start_sect = (clusterNum - 2) * bootsect.sectors_per_cluster + bootsect.reserved_sector_count + fat32Data->table_size_32 * bootsect.table_count; //translation: get the start sector of the cluster wanted, but since there are reserved sectors for the boot sector, etc. as well as the FAT, add on the sizes of the reserved and the FAT to skip them.
+		unsigned int start_sect = clusterNum * bootsect.sectors_per_cluster + bootsect.reserved_sector_count + fat32Data->table_size_32 * bootsect.table_count; //translation: get the start sector of the cluster wanted, but since there are reserved sectors for the boot sector, etc. as well as the FAT, add on the sizes of the reserved and the FAT to skip them.
 
 		int13h_read(start_sect, bootsect.sectors_per_cluster);
 	}
 	else if (fat_type == 16 || fat_type == 12)
 	{
-		unsigned int start_sect = (clusterNum - 2) * bootsect.sectors_per_cluster + bootsect.reserved_sector_count + bootsect.table_size_16 * bootsect.table_count; //translation: get the start sector of the cluster wanted, but since there are reserved sectors for the boot sector, etc. as well as the FAT, add on the sizes of the reserved and the FAT to skip them.
+		unsigned int start_sect = clusterNum * bootsect.sectors_per_cluster + bootsect.reserved_sector_count + bootsect.table_size_16 * bootsect.table_count; //translation: get the start sector of the cluster wanted, but since there are reserved sectors for the boot sector, etc. as well as the FAT, add on the sizes of the reserved and the FAT to skip them.
 
 		int13h_read(start_sect, bootsect.sectors_per_cluster);
 	}
