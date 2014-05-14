@@ -12,7 +12,6 @@ void real_mode_sw_int_call();
 
 void FATInitialize();
 
-#pragma pack(1)
 typedef struct fat_extBS_32
 {
 	//extended fat32 stuff
@@ -30,7 +29,7 @@ typedef struct fat_extBS_32
 	unsigned char		volume_label[11];
 	unsigned char		fat_type_label[8];
 
-}/*__attribute__(packed) */fat_extBS_32_t;
+}__attribute__(packed) fat_extBS_32_t;
 
 typedef struct fat_extBS_16
 {
@@ -42,7 +41,7 @@ typedef struct fat_extBS_16
 	unsigned char		volume_label[11];
 	unsigned char		fat_type_label[8];
 
-}/*__attribute__((packed)) */fat_extBS_16_t;
+}__attribute__((packed)) fat_extBS_16_t;
 
 typedef struct fat_BS
 {
@@ -64,7 +63,7 @@ typedef struct fat_BS
 	//this will be cast to it's specific type once the driver actually knows what type of FAT this is.
 	unsigned char		extended_section[54];
 
-}/*__attribute__((packed)) */fat_BS_t;
+}__attribute__((packed)) fat_BS_t;
 
 /* from http://wiki.osdev.org/FAT */
 
@@ -83,8 +82,7 @@ typedef struct directory_entry
 	unsigned short low_bits;
 	unsigned int file_size;
 
-} directory_entry_t;
-#pragma pop()
+}__attribute__((packed)) directory_entry_t;
 
 // For use with real_mode_sw_int_call function; holds register parameters
 // and interrupt type. It is also used to return any register values. All
