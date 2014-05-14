@@ -29,7 +29,7 @@ typedef struct fat_extBS_32
 	unsigned char		volume_label[11];
 	unsigned char		fat_type_label[8];
 
-}__attribute__(packed) fat_extBS_32_t;
+}__attribute__((packed)) fat_extBS_32_t;
 
 typedef struct fat_extBS_16
 {
