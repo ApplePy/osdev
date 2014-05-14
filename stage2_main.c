@@ -164,6 +164,18 @@ unsigned short *video = ( unsigned short * ) 0xB8000;
 
 unsigned short fat_type = 0;
 fat_BS_t bootsect;
+unsigned int first_fat_sector;
+
+#define END_SECTOR_32 0x0FFFFFF8
+#define BAD_SECTOR_32 0x0FFFFFF7
+#define FREE_SECTOR_32 0x00000000
+#define END_SECTOR_16 0xFF8
+#define BAD_SECTOR_16 0xFF7
+#define FREE_SECTOR_16 0x000
+#define END_SECTOR_8 END_SECTOR_16
+#define BAD_SECTOR_8 BAD_SECTOR_16
+#define FREE_SECTOR_8 FREE_SECTOR_16
+
 
 #define TTY 0x03F8
 #define DLLB	 0
@@ -738,6 +750,8 @@ void FATInitialize()
 	}
 
 	memcpy(&bootsect, bootstruct, 512);
+	
+	first_fat_sector = bootstruct->reserved_sector_count;
 }
 
 int getFile(const char* filePath, char** filePointer)
@@ -787,7 +801,7 @@ int directorySearch(const char* filepart, const unsigned int cluster, directory_
 			{
 				unsigned int next_cluster = FATRead(cluster);
 
-				if (next_cluster >= 0x0FFFFFF8)
+				if (next_cluster >= BAD_SECTOR_32)
 					break;
 				else
 					return directorySearch(filepart, cluster, file);//search next cluster
@@ -807,29 +821,23 @@ int directorySearch(const char* filepart, const unsigned int cluster, directory_
 //This function deals in absolute data clusters
 int FATRead(unsigned int clusterNum)
 {
-	int13h_read(bootsect.reserved_sector_count, bootsect.sectors_per_cluster * 2 - bootsect.reserved_sector_count); //reads the first two clusters, but exlcuding the reserved sectors.
-	clusterRead(1);
-
 	if (fat_type == 32)
 	{
-		unsigned char* FAT_table = 0x40000;
+	    unsigned int cluster_size = bootsect.bytes_per_sector; //is actually sector size
+		unsigned char FAT_table [32 * 1024]; //Takes into consideration the largest standard sector size since arrays can't be dynamically allocated without "new"
 		unsigned int fat_offset = clusterNum * 4;
-
-		unsigned int table_value = *(unsigned int*)(FAT_table + fat_offset) & 0x0FFFFFFF;
-
-		return table_value;
-
-		//unsigned char FAT_table [cluster_size];
-		//unsigned int fat_offset = clusterNum * 4;
-		//unsigned int fat_sector = first_fat_sector + (fat_offset / (bootsect.bytes_per_sector * bootsect.sectors_per_cluster));
-		//unsigned int ent_offset = fat_offset % cluster_size;
+		unsigned int fat_sector = first_fat_sector + (fat_offset / cluster_size);
+		unsigned int ent_offset = fat_offset % cluster_size;
 
 		//at this point you need to read from sector "fat_sector" on the disk into "FAT_table".
+		int13h_read(fat_sector, 1);
+		memcopy(&FAT_table, 0x40000, bootsect.bytes_per_sector);
 
 		//remember to ignore the high 4 bits.
-		//unsigned int table_value = *(unsigned int*)&FAT_table[ent_offset] & 0x0FFFFFFF;
+		unsigned int table_value = *(unsigned int*)&FAT_table[ent_offset] & 0x0FFFFFFF;
 
 		//the variable "table_value" now has the information you need about the next cluster in the chain.
+		return table_value;
 	}
 	else if (fat_type == 16 || fat_type == 12)
 	{
