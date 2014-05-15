@@ -29,7 +29,7 @@ typedef struct fat_extBS_32
 	unsigned char		volume_label[11];
 	unsigned char		fat_type_label[8];
 
-}__attribute__((packed)) fat_extBS_32_t;
+}_attribute__((packed)) fat_extBS_32_t;
 
 typedef struct fat_extBS_16
 {
@@ -41,7 +41,7 @@ typedef struct fat_extBS_16
 	unsigned char		volume_label[11];
 	unsigned char		fat_type_label[8];
 
-}__attribute__((packed)) fat_extBS_16_t;
+}_attribute__((packed)) fat_extBS_16_t;
 
 typedef struct fat_BS
 {
@@ -63,7 +63,7 @@ typedef struct fat_BS
 	//this will be cast to it's specific type once the driver actually knows what type of FAT this is.
 	unsigned char		extended_section[54];
 
-}__attribute__((packed)) fat_BS_t;
+}_attribute__((packed)) fat_BS_t;
 
 /* from http://wiki.osdev.org/FAT */
 
@@ -82,7 +82,7 @@ typedef struct directory_entry
 	unsigned short low_bits;
 	unsigned int file_size;
 
-}__attribute__((packed)) directory_entry_t;
+}_attribute__((packed)) directory_entry_t;
 
 // For use with real_mode_sw_int_call function; holds register parameters
 // and interrupt type. It is also used to return any register values. All
@@ -715,14 +715,19 @@ int main(void) {
 
 }
 
-/*//////////////////////////////////////////////////////////*/
+/*///////////////////Temporary Declarations/////////////////*/
+int directorySearch(const char* filepart, const unsigned int cluster, directory_entry_t* file);
+void FATInitialize();
+int getFile(const char* filePath, char** filePointer);
+int FATRead(unsigned int clusterNum);
+void clusterRead(unsigned int clusterNum);
 
 
 void FATInitialize()
 {
-	int result = int13h_read(1, 1); //reads the first sector of the FAT
+	int13h_read(1, 1); //reads the first sector of the FAT
 
-	fat_BS_t* bootstruct = 0x40000;
+	fat_BS_t* bootstruct = (fat_BS_t*)0x40000;
 
 	unsigned int total_clusters = bootstruct->total_sectors_16 / bootstruct->sectors_per_cluster;
 
@@ -783,7 +788,7 @@ int getFile(const char* filePath, char** filePointer)
 int directorySearch(const char* filepart, const unsigned int cluster, directory_entry_t* file)
 {
 	clusterRead(cluster);
-	directory_entry_t* file_metadata = 0x40000;
+	directory_entry_t* file_metadata = (directory_entry_t*)0x40000;
 	unsigned int meta_pointer_iteratator_count = 0;
 
 	while (1)
