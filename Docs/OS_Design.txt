@@ -24,9 +24,11 @@ Memory Management (DRAFT):
 ||                             ||
 ||                             ||
 ||-----------------------------||
-||   Colour Monitor Control    || 0xB8000
+||   Colour Monitor Control    || 0xB8000 (32 kb)
 ||-----------------------------||
-|| Monochrome Monitor Control  || 0xB0000
+|| Monochrome Monitor Control  || 0xB0000 (32 kb)
+||-----------------------------||
+||   EGA/VGA Monitor Control   || 0xA0000 (64 kb)
 ||-----------------------------||
 ||                             ||
 ||                             ||
