@@ -834,7 +834,7 @@ int FATRead(unsigned int clusterNum)
 
 		//at this point you need to read from sector "fat_sector" on the disk into "FAT_table".
 		int13h_read(fat_sector, 1);
-		memcopy(&FAT_table, 0x40000, bootsect.bytes_per_sector);
+		memcpy(&FAT_table, (char*)0x40000, bootsect.bytes_per_sector);
 
 		//remember to ignore the high 4 bits.
 		unsigned int table_value = *(unsigned int*)&FAT_table[ent_offset] & 0x0FFFFFFF;
