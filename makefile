@@ -22,7 +22,7 @@ stage2.o: stage2.asm
 	nasm -f aout -o stage2.o stage2.asm
 
 stage2_main.o: stage2_main.c
-	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o stage2_main.o stage2_main.c
+	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o stage2_main.o stage2_main.c -std=c99
 
 string.o: string.asm string.h
 	nasm -f aout -o string.o string.asm
@@ -39,7 +39,7 @@ stage3.o: stage3.asm
 	nasm -f aout -o stage3.o stage3.asm
 
 fillprep: fillprep.c
-	gcc -o fillprep fillprep.c
+	gcc -o fillprep fillprep.c -std=c99
 
 clean:
 	rm -f *.bin *.o *.com
