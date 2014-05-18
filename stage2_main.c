@@ -757,7 +757,7 @@ void FATInitialize()
 	first_fat_sector = bootstruct->reserved_sector_count;
 }
 
-int getFile(const char* filePath, char** filePointer)
+int getFile(const char* filePath, char** filePointer, file_info& fileMetadata)
 {
 	char fileNamePart[255] = { '\0' };
 	unsigned short start = 3;
