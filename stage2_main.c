@@ -101,7 +101,7 @@ unsigned short *video = ( unsigned short * ) 0xB8000;
 // send byte to I/O port
 static inline void outb( unsigned short port, unsigned char val)
 {
-    asm volatile ( "outb %0, %1" : : "a"(val), "Nd"(port) );
+    __asm__ volatile ( "outb %0, %1" : : "a"(val), "Nd"(port) );
     /* TODO: Is it wrong to use 'N' for the port? It's not a 8-bit constant. */
     /* TODO: Should %1 be %w1? */
     /* TODO: Is there any reason to force the use of eax and edx? */
