@@ -72,11 +72,13 @@
     <None Include="..\string.asm" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\FAT.c" />
     <ClCompile Include="..\fillprep.c" />
     <ClCompile Include="..\stage2_main.c" />
     <ClCompile Include="..\stage3.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\FAT.h" />
     <ClInclude Include="..\string.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -42,9 +42,15 @@
     <ClCompile Include="..\stage3.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\FAT.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\string.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\FAT.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
