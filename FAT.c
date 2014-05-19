@@ -178,7 +178,7 @@ int directorySearch(const char* filepart, const unsigned int cluster, directory_
 	strcpy(searchName, filepart);
 	convertToFATFormat(searchName);
 
-	clusterRead(cluster); //read cluster of the directory/subdirectory
+	clusterRead(cluster, 0); //read cluster of the directory/subdirectory
 	directory_entry_t* file_metadata = (directory_entry_t*)DISK_READ_LOCATION;
 	unsigned int meta_pointer_iteratator_count = 0; //holds how many directories have been looked at
 
@@ -275,7 +275,7 @@ int main()
 	directory_entry_t entry;
 	directorySearch("example.txt", 2, &entry);
 	char* file;
-	getFile("C:\\folder\\foldtest.exp", &file, &entry);
+	getFile("C:\\folder\\foldtest.exp", &file, &entry, 1);
 	return 0;
 }
 #endif
