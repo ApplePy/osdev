@@ -54,7 +54,7 @@ void convertToFATFormat(char* input) //Works! (Does not consider making short fo
 		}
 	}
 
-	if (counter > 8) //a sanity check in case there was a dot-less 11 character filename
+	if (counter > 9) //a sanity check in case there was a dot-less 11 character filename
 	{
 		counter = 8;
 		dotPos = 8;
@@ -120,30 +120,54 @@ void FATInitialize() //works!
 	first_fat_sector = bootstruct->reserved_sector_count;
 }
 
-int getFile(const char* filePath, char** filePointer)
+//retrieves a specified file from the File System
+int getFile(const char* filePath, char** fileContents, directory_entry_t* fileMeta, unsigned int readInOffset)
 {
-	char fileNamePart[256] = { '\0' };
-	unsigned short start = 3;
-	unsigned int active_cluster = ((fat_extBS_32_t*)bootsect.extended_section)->root_cluster;
-	directory_entry_t file_info;
+	char fileNamePart[256] = { '\0' }; //holds the part of the path to be searched
+	unsigned short start = 3; //starting at 3 to skip the "C:\" bit
+	unsigned int active_cluster = ((fat_extBS_32_t*)bootsect.extended_section)->root_cluster; //holds the cluster to be searched for directory entries related to the path
+	directory_entry_t file_info; //holds found directory info
 
 	//starting at 3 to skip the "C:\" bit
 	for (unsigned int iterator = 3; filePath[iterator - 1] != '\0'; iterator++)
 	{
 		if (filePath[iterator] == '\\' || filePath[iterator] == '\0')
 		{
-			memcpy(fileNamePart, filePath + start, iterator - start - 1); //hacked-together strcpy derivative...
+			memset(fileNamePart, '\0', 256); //clean out fileNamePart before copy
+			memcpy(fileNamePart, filePath + start, iterator - start); //hacked-together strcpy derivative...
 
-			int retVal = directorySearch(fileNamePart, active_cluster, &file_info);
+			int retVal = directorySearch(fileNamePart, active_cluster, &file_info); //go looking for a directory in the specified cluster with the specified name
 
-			if (retVal == 0)
+			if (retVal != 0) //no directory matching found
 				return -1;
 
 			start = iterator + 1;
-			active_cluster = file_info.high_bits | file_info.low_bits;
+			active_cluster = file_info.low_bits | (file_info.high_bits << 16); //shift the high bits into their appropriate spots, and OR with low_bits (could also add, I think) in prep for next search
 		}
 	}
-	return 0;
+
+	if ((file_info.attributes & FILE_DIRECTORY) != FILE_DIRECTORY) //if final directory listing found isn't a directory
+	{
+		*fileMeta = file_info; //copy fileinfo over
+
+		if (readInOffset < 1 || (readInOffset * (unsigned short)bootsect.bytes_per_sector * (unsigned short)bootsect.sectors_per_cluster) + file_info.file_size > 262144) //prevent offsets that extend into FATRead's working range or outside the allocated BIOS int13h space
+			return -3; //you cannot have an offset below 1, nor can you read in more than 256kB
+
+		unsigned int cluster = file_info.low_bits | (file_info.high_bits << 16); //initialize file read-in with first cluster of file
+		unsigned int clusterReadCount = 0;
+		while (cluster < END_SECTOR_32)
+		{
+			clusterRead(cluster, clusterReadCount + readInOffset); //Always offset by at least one, so any file operations happening exactly at DISK_READ_LOCATION (e.g. FAT Table lookups) don't overwrite the data (this is essentially backwards compatibility with previously written code)
+			clusterReadCount++;
+			cluster = FATRead(cluster);
+		}
+
+		*fileContents = DISK_READ_LOCATION + (unsigned short)bootsect.sectors_per_cluster * (unsigned short)bootsect.bytes_per_sector * readInOffset; //return a pointer in the BIOS read-in space where the file is.
+
+		return 0; //file successfully found
+	}
+	else
+		return -2; //the path specified was a directory
 }
 
 //recieves the cluster to read for a directory and the requested file, and will iterate through the directory's clusters - returning the entry for the searched file/subfolder, or no file/subfolder
@@ -234,28 +258,28 @@ int FATRead(unsigned int clusterNum) //32 works! Don't know about 16 or 12
 	return -1;
 }
 
-//Reads one cluster and dumps it to DISK_READ_LOCATION
+//Reads one cluster and dumps it to DISK_READ_LOCATION, offset "cluster_size" number of bytes from DISK_READ_LOCATION
 //This function deals in absolute data clusters
-void clusterRead(unsigned int clusterNum) //Works!
+void clusterRead(unsigned int clusterNum, unsigned int clusterOffset) //Works!
 {
 	unsigned int start_sect = (clusterNum - 2) * (unsigned short)bootsect.sectors_per_cluster + first_data_sector; //Explanation: Since the root cluster is cluster 2, but data starts at first_data_sector, subtract 2 to get the proper cluster offset from zero.
 
-	int13h_read(start_sect, (unsigned short)bootsect.sectors_per_cluster);
+	int13h_read_o(start_sect, (unsigned short)bootsect.sectors_per_cluster, clusterOffset * (unsigned short)bootsect.sectors_per_cluster);
 }
 
-#ifdef _MSC_VER //testing code! Non-Visual-Studio compilers will ignore this
+#ifdef _MSC_VER
 int main()
 {
 	FATInitialize();
-	//FATRead(2);
-	char test[12] = "1234567890!";
-	convertToFATFormat(test);
+	FATRead(2);
 	directory_entry_t entry;
 	directorySearch("example.txt", 2, &entry);
-	//fat_extBS_32_t* test = (fat_extBS_32_t*)(bootsect.extended_section);
+	char* file;
+	getFile("C:\\folder\\foldtest.exp", &file, &entry);
 	return 0;
 }
 #endif
+
 
 //NOTE: Absolute data clusters start at #2, not 1 or 0, while relative cluster numbers start relative to the first data cluster (2). E.g: The relative cluster number of the first data cluster is 0.
 //NOTE: Long file names are UNICODE. Figure out how linux compiler handles unicode.

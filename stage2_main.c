@@ -389,6 +389,38 @@ int int13h_read( unsigned long sector_offset, unsigned char num_blocks ) {
    
 }
 
+// Read sector(s) from booted partition to 0x4000:0000
+// Returns 0 on success and non-zero on failure
+int int13h_read_o(unsigned long sector_offset, unsigned char num_blocks, unsigned long readLocationOffset) {
+
+	// Bounds check; only read sectors on the booted partition
+	if (sector_offset + num_blocks > part_length)
+		return -1;
+
+	// Sanity check; BIOS int13h can only read up to 0x7F blocks
+	if (num_blocks > 0x7F)
+		return -1;
+
+	disk_address_packet.packet_size = 0x10;
+	disk_address_packet.resv1 = 0x00;
+	disk_address_packet.num_blocks = num_blocks;
+	disk_address_packet.resv2 = 0x00;
+	disk_address_packet.offset = readLocationOffset;
+	disk_address_packet.segment = 0x4000;
+	disk_address_packet.LBA_sector = (unsigned long long) part_start_lba + (unsigned long long) sector_offset;
+
+	real_mode_linear_sw_int.ah = 0x42;   // Extended read
+	real_mode_linear_sw_int.dl = bios_disk_number;
+	real_mode_linear_sw_int.si = 0x0040; // Pointer to dap (in real mode memory...DS:SI)
+	real_mode_linear_sw_int.opcode = 0xCD;
+	real_mode_linear_sw_int.operand = 0x13;
+
+	real_mode_sw_int_call();
+
+	return real_mode_linear_sw_int.ah;
+
+}
+
 // Write sector(s) to booted partition from 0x4000:0100
 // Returns 0 on success and non-zero on failure
 int int13h_write( unsigned long sector_offset, char num_blocks ) {

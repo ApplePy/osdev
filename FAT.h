@@ -1,3 +1,6 @@
+#ifndef FAT_H_
+#define FAT_H_
+
 #ifdef _MSC_VER
 #define _CRT_SECURE_NO_WARNINGS
 
@@ -38,12 +41,12 @@
 
 #ifdef _MSC_VER
 #define DISK_READ_LOCATION tesing_disk_input
-
+/*C PLUS PLUS CODE!!!*/
 std::fstream* fakeDisk;
 
-char tesing_disk_input[512 * 10] = { '\0' }; //simulates 0x40000 read-in address location
+char tesing_disk_input[512 * 0x7F]; //simulates 0x40000 read-in address location
 
-int int13h_read(int sector, int num) //a testing implementation of the real function to allow for testing on a disk contained in a file, rather than a real disk.
+int int13h_read(unsigned long sector, unsigned char num) //a testing implementation of the real function to allow for testing on a disk contained in a file, rather than a real disk.
 {
 	if (num < 0) // get the absolute value of num
 		num = 0 - num;
@@ -65,11 +68,35 @@ int int13h_read(int sector, int num) //a testing implementation of the real func
 
 	return 0;
 }
+
+int int13h_read_o(unsigned long sector, unsigned char num, unsigned long offset)
+{
+	if (num < 0) // get the absolute value of num
+		num = 0 - num;
+
+	fakeDisk = new std::fstream; //get around an access control issue
+	fakeDisk->open("C:\\Users\\Darryl\\Desktop\\part.img", std::ios::in | std::ios::binary /*| std::ios::out*/);
+
+	fakeDisk->seekg(sector * 512);
+	fakeDisk->read(DISK_READ_LOCATION + offset * 512, 512 * num);
+
+	if (fakeDisk->good() == false)
+	{
+		std::cerr << "Read issue!" << std::endl;
+		system("pause");
+	}
+
+	fakeDisk->close();
+	delete fakeDisk;
+
+	return 0;
+}
 #else
 #define DISK_READ_LOCATION 0x40000
 #endif
 
 #ifdef _MSC_VER
+#pragma pack(push, default_val)
 #pragma pack(1)
 #endif
 
@@ -192,20 +219,23 @@ __attribute__((packed))
 #endif
 long_entry_t;
 
-//#pragma pop(1)
+#ifdef _MSC_VER
+#pragma pack(pop, default_val)
+#endif
 
 unsigned int fat_type;
 unsigned int first_fat_sector;
 unsigned int first_data_sector;
 fat_BS_t bootsect;
 
-/*///////////////////Temporary Declarations/////////////////*/
 int directorySearch(const char* filepart, const unsigned int cluster, directory_entry_t* file);
 void FATInitialize();
-int getFile(const char* filePath, char** filePointer, directory_entry_t* fileMeta);
+int getFile(const char* filePath, char** fileContents, directory_entry_t* fileMeta, unsigned int readInOffset);
 int FATRead(unsigned int clusterNum);
-void clusterRead(unsigned int clusterNum);
+void clusterRead(unsigned int clusterNum, unsigned int clusterOffset);
 void convertToFATFormat(char* input);
 unsigned char ChkSum(unsigned char *pFcbName);
 int UpdateBootSect(fat_BS_t newContents); //don't forget the backup bootsector!
 int UpdateFSInfo(FSInfo_t newInfo); //don't forget the backup FSInfo! (if one exists)
+
+#endif
