@@ -120,7 +120,7 @@ void FATInitialize() //works!
 	first_fat_sector = bootstruct->reserved_sector_count;
 }
 
-//retrieves a specified file from the File System
+//retrieves a specified file from the File System (readInOffset is in clusters)
 int getFile(const char* filePath, char** fileContents, directory_entry_t* fileMeta, unsigned int readInOffset)
 {
 	char fileNamePart[256] = { '\0' }; //holds the part of the path to be searched
@@ -264,7 +264,7 @@ void clusterRead(unsigned int clusterNum, unsigned int clusterOffset) //Works!
 {
 	unsigned int start_sect = (clusterNum - 2) * (unsigned short)bootsect.sectors_per_cluster + first_data_sector; //Explanation: Since the root cluster is cluster 2, but data starts at first_data_sector, subtract 2 to get the proper cluster offset from zero.
 
-	int13h_read_o(start_sect, (unsigned short)bootsect.sectors_per_cluster, clusterOffset * (unsigned short)bootsect.sectors_per_cluster);
+	int13h_read_o(start_sect, (unsigned short)bootsect.sectors_per_cluster, clusterOffset * (unsigned short)bootsect.sectors_per_cluster * (unsigned short)bootsect.bytes_per_sector);
 }
 
 #ifdef _MSC_VER

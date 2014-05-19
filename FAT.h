@@ -40,11 +40,12 @@
 
 
 #ifdef _MSC_VER
-#define DISK_READ_LOCATION tesing_disk_input
+#define DISK_READ_LOCATION testing_disk
+#define DISK_WRITE_LOCATION testing_disk
 /*C PLUS PLUS CODE!!!*/
 std::fstream* fakeDisk;
 
-char tesing_disk_input[512 * 0x7F]; //simulates 0x40000 read-in address location
+char testing_disk[512 * 0x7F]; //simulates 0x40000 read-in address location
 
 int int13h_read(unsigned long sector, unsigned char num) //a testing implementation of the real function to allow for testing on a disk contained in a file, rather than a real disk.
 {
@@ -69,7 +70,7 @@ int int13h_read(unsigned long sector, unsigned char num) //a testing implementat
 	return 0;
 }
 
-int int13h_read_o(unsigned long sector, unsigned char num, unsigned long offset)
+int int13h_read_o(unsigned long sector, unsigned char num, unsigned long memoffset)
 {
 	if (num < 0) // get the absolute value of num
 		num = 0 - num;
@@ -78,7 +79,7 @@ int int13h_read_o(unsigned long sector, unsigned char num, unsigned long offset)
 	fakeDisk->open("C:\\Users\\Darryl\\Desktop\\part.img", std::ios::in | std::ios::binary /*| std::ios::out*/);
 
 	fakeDisk->seekg(sector * 512);
-	fakeDisk->read(DISK_READ_LOCATION + offset * 512, 512 * num);
+	fakeDisk->read(DISK_READ_LOCATION + memoffset, 512 * num);
 
 	if (fakeDisk->good() == false)
 	{
@@ -91,8 +92,58 @@ int int13h_read_o(unsigned long sector, unsigned char num, unsigned long offset)
 
 	return 0;
 }
+
+/*THE WRITE FUNCTIONS MAY NOT HAVE BEEN IMPLEMENTED CORRECTLY!*/
+
+int int13h_write(unsigned long sector, unsigned char num) //a testing implementation of the real function to allow for testing on a disk contained in a file, rather than a real disk.
+{
+	if (num < 0) // get the absolute value of num
+		num = 0 - num;
+
+	fakeDisk = new std::fstream; //get around an access control issue
+	fakeDisk->open("C:\\Users\\Darryl\\Desktop\\part.img", std::ios::in | std::ios::binary | std::ios::out);
+
+	fakeDisk->seekp(sector * 512);
+	fakeDisk->write(DISK_WRITE_LOCATION, 512 * num);
+
+	if (fakeDisk->good() == false)
+	{
+		std::cerr << "Read issue!" << std::endl;
+		system("pause");
+	}
+
+	fakeDisk->close();
+	delete fakeDisk;
+
+	return 0;
+}
+
+int int13h_write_o(unsigned long sector, unsigned char num, unsigned long memoffset)
+{
+	if (num < 0) // get the absolute value of num
+		num = 0 - num;
+
+	fakeDisk = new std::fstream; //get around an access control issue
+	fakeDisk->open("C:\\Users\\Darryl\\Desktop\\part.img", std::ios::in | std::ios::binary | std::ios::out);
+
+	fakeDisk->seekp(sector * 512);
+	fakeDisk->write(DISK_WRITE_LOCATION + memoffset, 512 * num);
+
+	if (fakeDisk->good() == false)
+	{
+		std::cerr << "Read issue!" << std::endl;
+		system("pause");
+	}
+
+	fakeDisk->close();
+	delete fakeDisk;
+
+	return 0;
+}
+
 #else
 #define DISK_READ_LOCATION 0x40000
+#define DISK_WRITE_LOCATION 0x40000
 #endif
 
 #ifdef _MSC_VER
