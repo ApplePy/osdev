@@ -10,15 +10,15 @@
 #endif
 //#include "C:\Users\Darryl\Documents\Visual Studio 2013\Projects\osdev\string.h"
 
-#define END_SECTOR_32 0x0FFFFFF8 //Use OSDev.org's suggestion of 0x0FFFFFF8 even though MSYS docs > OSdev.org.
-#define BAD_SECTOR_32 0x0FFFFFF7
-#define FREE_SECTOR_32 0x00000000
-#define END_SECTOR_16 0xFFF8
-#define BAD_SECTOR_16 0xFFF7
-#define FREE_SECTOR_16 0x0000
-#define END_SECTOR_8 0xFF8
-#define BAD_SECTOR_8 0xFF7
-#define FREE_SECTOR_8 0x000
+#define END_CLUSTER_32 0x0FFFFFF8 //Use OSDev.org's suggestion of 0x0FFFFFF8 even though MSYS docs > OSdev.org.
+#define BAD_CLUSTER_32 0x0FFFFFF7
+#define FREE_CLUSTER_32 0x00000000
+#define END_CLUSTER_16 0xFFF8
+#define BAD_CLUSTER_16 0xFFF7
+#define FREE_CLUSTER_16 0x0000
+#define END_CLUSTER_12 0xFF8
+#define BAD_CLUSTER_12 0xFF7
+#define FREE_CLUSTER_12 0x000
 
 #define CLEAN_EXIT_BMASK_16 0x8000
 #define HARD_ERR_BMASK_16 0x4000
@@ -37,6 +37,9 @@
 #define ENTRY_JAPAN 0x05
 #define LAST_LONG_ENTRY 0x40
 
+#ifndef NULL
+#define NULL 0
+#endif
 
 
 #ifdef _MSC_VER
@@ -277,9 +280,10 @@ long_entry_t;
 unsigned int fat_type;
 unsigned int first_fat_sector;
 unsigned int first_data_sector;
+unsigned int total_clusters;
 fat_BS_t bootsect;
 
-int directorySearch(const char* filepart, const unsigned int cluster, directory_entry_t* file);
+int directorySearch(const char* filepart, const unsigned int cluster, directory_entry_t* file, unsigned int* entryOffset);
 void FATInitialize();
 int getFile(const char* filePath, char** fileContents, directory_entry_t* fileMeta, unsigned int readInOffset);
 int FATRead(unsigned int clusterNum);
@@ -288,5 +292,9 @@ void convertToFATFormat(char* input);
 unsigned char ChkSum(unsigned char *pFcbName);
 int UpdateBootSect(fat_BS_t newContents); //don't forget the backup bootsector!
 int UpdateFSInfo(FSInfo_t newInfo); //don't forget the backup FSInfo! (if one exists)
+unsigned short CurrentTime();
+unsigned char CurrentTimeTenths();
+unsigned short CurrentDate();
+unsigned int allocateFreeFAT();
 
 #endif
