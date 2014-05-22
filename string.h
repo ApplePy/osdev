@@ -9,10 +9,10 @@ char   *strcpy   ( char *s1,       const char *s2           ); // Priority
 char   *strncpy  ( char *s1,       const char *s2, size_t n ); // Priority
 char   *strcat   ( char *s1,       const char *s2           ); // Priority
 char   *strncat  ( char *s1,       const char *s2, size_t n ); // Priority
-int    memcmp    ( const void *s1, const void *s2, size_t n ); // Priority
-int    strcmp    ( const char *s1, const char *s2           ); // Priority
+int    memcmp    ( const void *s1, const void *s2, size_t n ); // Implemented!
+int    strcmp    ( const char *s1, const char *s2           ); // Implemented!
 int    strcoll   ( const char *s1, const char *s2           );
-int    strncmp   ( const char *s1, const char *s2, size_t n ); // Priority
+int    strncmp   ( const char *s1, const char *s2, size_t n ); // Implemented!
 size_t strxfrm   ( char *s1,       const char *s2, size_t n );
 void   *memchr   ( const void *s,  int c,          size_t n );
 char   *strchr   ( const char *s,  int c                    );

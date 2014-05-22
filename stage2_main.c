@@ -1,4 +1,5 @@
 #define NULL 0
+#define TESTING
 
 #include "string.h"
 #include "FAT.h"
@@ -421,7 +422,7 @@ int int13h_read_o(unsigned long sector_offset, unsigned char num_blocks, unsigne
 
 }
 
-// Write sector(s) to booted partition from 0x4000:0100
+// Write sector(s) to booted partition from 0x4000:0000
 // Returns 0 on success and non-zero on failure
 int int13h_write( unsigned long sector_offset, char num_blocks ) {
    
@@ -454,7 +455,45 @@ int int13h_write( unsigned long sector_offset, char num_blocks ) {
    
 }
 
+// Write sector(s) to booted partition from 0x4000:0000
+// Returns 0 on success and non-zero on failure
+int int13h_write_o(unsigned long sector_offset, char num_blocks, unsigned long writeLocationOffset) {
+
+	// Bounds check; only write sectors on the booted partition
+	if (sector_offset + num_blocks > part_length)
+		return -1;
+
+	// Sanity check; BIOS int13h can only write up to 0x7F blocks
+	if (num_blocks > 0x7F)
+		return -1;
+
+	disk_address_packet.packet_size = 0x10;
+	disk_address_packet.resv1 = 0x00;
+	disk_address_packet.num_blocks = num_blocks;
+	disk_address_packet.resv2 = 0x00;
+	disk_address_packet.offset = writeLocationOffset;
+	disk_address_packet.segment = 0x4000;
+	disk_address_packet.LBA_sector = (unsigned long long) part_start_lba + (unsigned long long) sector_offset;
+
+	real_mode_linear_sw_int.al = 0x00;   // Write with verify off
+	real_mode_linear_sw_int.ah = 0x43;   // Extended write
+	real_mode_linear_sw_int.dl = bios_disk_number;
+	real_mode_linear_sw_int.si = 0x0040; // Pointer to dap (in real mode memory...DS:SI)
+	real_mode_linear_sw_int.opcode = 0xCD;
+	real_mode_linear_sw_int.operand = 0x13;
+
+	real_mode_sw_int_call();
+
+	return real_mode_linear_sw_int.ah;
+
+}
+
 int main(void) {
+
+	part_start_lba = 33543720;
+	part_length = 8385930;
+
+	FATInitialize();
 
    char buf, *addr, checksum;
    int i, count, lba_sector, num_blocks;
@@ -498,6 +537,11 @@ int main(void) {
          reset();
 
       }
+
+	  else if (buf == 'a') {
+		  printss("bootsect.oem_name =");
+		  printss(bootsect.oem_name);
+	  }
       
       else if ( buf == 'c' ) {
       
