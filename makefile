@@ -15,19 +15,25 @@ stage2.txt: stage2.com fillprep
 	echo "" >> stage2.txt
 	echo -n "g" >> stage2.txt
 
-stage2.com: stage2.o stage2_main.o string.o
-	ld -s -o stage2.com --oformat binary -Ttext 0x10200 stage2.o stage2_main.o string.o
+stage2.com: stage2.o stage2_main.o string.o stringc.o FAT.o
+	ld -s -o stage2.com --oformat binary -Ttext 0x10200 stage2.o stage2_main.o string.o stringc.o FAT.o
 
 stage2.o: stage2.asm
 	nasm -f aout -o stage2.o stage2.asm
 
 stage2_main.o: stage2_main.c
 	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o stage2_main.o stage2_main.c
+	
+stringc.o: string.c
+	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o stringc.o string.c -std=c99
+	
+FAT.o: FAT.c
+	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o FAT.o FAT.c -std=c99
 
 string.o: string.asm string.h
 	nasm -f aout -o string.o string.asm
 
-stage2.txt: stage3.com fillprep
+stage3.txt: stage3.com fillprep
 	echo -n "s00200000" > stage3.txt
 	./fillprep < stage3.com >> stage3.txt
 	echo "" >> stage3.txt
@@ -42,4 +48,4 @@ fillprep: fillprep.c
 	gcc -o fillprep fillprep.c
 
 clean:
-	rm -f *.bin *.o *.com
+	rm -f *.bin *.o *.com fillprep *.txt
