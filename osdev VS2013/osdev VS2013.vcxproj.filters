@@ -42,6 +42,9 @@
     <ClCompile Include="..\stage3.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\string.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\FAT.c">
       <Filter>Source Files</Filter>
     </ClCompile>

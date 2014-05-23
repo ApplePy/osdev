@@ -76,6 +76,7 @@
     <ClCompile Include="..\fillprep.c" />
     <ClCompile Include="..\stage2_main.c" />
     <ClCompile Include="..\stage3.c" />
+    <ClCompile Include="..\string.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\FAT.h" />
