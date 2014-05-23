@@ -11,6 +11,8 @@ void real_mode_sw_int_call();
 int enableA20();
 int int13h_read(  unsigned long sector_offset, unsigned char num_blocks );
 int int13h_write( unsigned long sector_offset, unsigned char num_blocks );
+void setpixel(int x, int y, int color);
+void drawline(int x1, int y1, int x2, int y2, int color);
 
 // For use with real_mode_sw_int_call function; holds register parameters
 // and interrupt type. It is also used to return any register values. All
@@ -103,6 +105,16 @@ int main(void) {
    printhex( part_length, 8 );
    printss( "\nbios_disk_number=" );
    printhex( bios_disk_number, 2 );
+   
+   //NEED CHANGE----Switch to 13h
+   real_mode_linear_sw_int.al = 0x12;   // select mode 0x12
+   real_mode_linear_sw_int.ah = 0x00;   // set video mode
+   real_mode_linear_sw_int.opcode = 0xCD;
+   real_mode_linear_sw_int.operand = 0x10;
+   
+   real_mode_sw_int_call(); 
+   //setpixel(100,150,1);
+   drawline(10, 200, 300, 300, 1);
    
    while ( 1 ) {
 
@@ -217,6 +229,21 @@ int main(void) {
       
       }
       
+	  else if ( buf == 'p' ) {
+      
+         if ( gethex( ( void * ) &x, 4, -1 ) != 0 )
+            continue;
+         
+         if ( gethex( ( void * ) &y, 4, -1 ) != 0 )
+            continue;
+         
+         if ( gethex( ( void * ) &colour, 2, -1 ) != 0 )
+            continue;
+         
+         setpixel( x, y, colour );
+      
+      }
+	  
       else if ( buf == 'm' ) {
       
          if ( gethex( ( void * ) &addr, 8, -1 ) != 0 )
@@ -266,6 +293,7 @@ int main(void) {
          printss( "\ni <port>                    - read byte from I/O port" );
          printss( "\nm <addr>                    - modify memory location" );
          printss( "\no <port> <byte>             - write byte to I/O port" );
+		 printss( "\np <x> <y> <colour>          - setpixel" );
          printss( "\nr <lba_sector> <num_blocks> - read disk sector(s) to 0x00040000" );
          printss( "\ns <addr>                    - \"silent\" fill (same as f without echo)" );
          printss( "\nw <lba_sector> <num_blocks> - write disk sector(s) from 0x00040000" );
@@ -460,4 +488,88 @@ int int13h_write( unsigned long sector_offset, unsigned char num_blocks ) {
    
    return real_mode_linear_sw_int.ah;
    
+}
+
+void setpixel(int x, int y, int color)
+{
+	
+	
+	printhex(x,8);
+	printhex(y,8);
+	printhex(color,8);
+	
+	unsigned short offset = (x + y * 640) / 8;  //8 pixels per byte!
+	int bitnum = 7-(x+y*640) %8;
+	if (color==0)
+		video[offset] &= ~(0x01 << bitnum);
+	else
+		video[offset] |= 0x01 << bitnum;
+	//gethex( ( void * ) &addr, 8, -1 );
+	return;
+}
+
+void drawline(int x1, int y1, int x2, int y2, int color)
+{
+
+
+	int dx = x2 - x1;      /* the horizontal distance of the line */
+	int dy = y2 - y1;      /* the vertical distance of the line */
+	int dyabs = dy;
+	int dxabs = dx;
+	int sdx = 1;
+	int sdy = 1;
+	
+	if (dx < 0)
+		{
+		dxabs = -dx;
+		sdx = -1;
+		}
+	if (dy < 0)
+		{
+		dyabs = -dy;
+		sdy = -1;
+		}
+
+	int slope;
+	int px = 0;
+	int py = 0;
+	int i = 0;
+	int increment=1;
+	int xstart = x1;
+	int ystart = y1;
+	
+	
+	if (dxabs >= dyabs) /* the line is more horizontal than vertical */
+	{
+		slope = dy / dx; 
+		if (dx>0 && dy>0){
+		 xstart = x1;
+		 ystart = y1;
+		 increment=1;
+		}
+		else if (dx>0 && dy<0){
+		 xstart = x1;
+		 ystart = y1;
+		 increment=-1;
+		}
+		
+		for (i = 0; i <= dx ; i++)
+		{
+			px = i + xstart;
+			py = slope*i+ystart;
+			setpixel(px, py, color);
+		}
+		
+		
+	}
+	//else /* the line is more vertical than horizontal */
+	/*{
+		slope = dx / dy;//NEED CHANGE
+		for (i = 0; i <= dy; i++)
+		{
+			px = slope*i + x1;
+			py = i + y1;
+			setpixel(px, py, color);
+		}
+	}*/
 }
