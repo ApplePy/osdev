@@ -221,7 +221,7 @@ int FATRead(unsigned int clusterNum) //32 works! Don't know about 16 or 12
 	if (fat_type == 32)
 	{
 		unsigned int cluster_size = bootsect.bytes_per_sector * bootsect.sectors_per_cluster;
-		unsigned char FAT_table[32 * 1024] {'\0'}; //Takes into consideration the largest standard cluster size (32kB) since arrays can't be dynamically allocated without "new" :/
+		unsigned char FAT_table[32 * 1024] = {'\0'}; //Takes into consideration the largest standard cluster size (32kB) since arrays can't be dynamically allocated without "new" :/
 		unsigned int fat_offset = clusterNum * 4;
 		unsigned int fat_sector = first_fat_sector + (fat_offset / cluster_size);
 		unsigned int ent_offset = fat_offset % cluster_size;
@@ -291,7 +291,7 @@ int FATWrite(unsigned int clusterNum, unsigned int clusterVal) //Works!
 	if (fat_type == 32)
 	{
 		unsigned int cluster_size = bootsect.bytes_per_sector * bootsect.sectors_per_cluster;
-		unsigned char FAT_table[32 * 1024] {'\0'}; //Takes into consideration the largest standard cluster size (32kB) since arrays can't be dynamically allocated without "new" :/
+		unsigned char FAT_table[32 * 1024] = {'\0'}; //Takes into consideration the largest standard cluster size (32kB) since arrays can't be dynamically allocated without "new" :/
 		unsigned int fat_offset = clusterNum * 4;
 		unsigned int fat_sector = first_fat_sector + (fat_offset / cluster_size);
 		unsigned int ent_offset = fat_offset % cluster_size;

@@ -89,8 +89,8 @@ ret
 
 
 ;int    strcmp    ( const char *s1, const char *s2           ); // Priority
-[GLOBAL strcmp]
-strcmp:
+;[GLOBAL strcmp]
+;strcmp:
 
 push	ebp
 mov	ebp, esp
@@ -119,8 +119,8 @@ ret
 
 
 ;int    strncmp   ( const char *s1, const char *s2, size_t n ); // Priority
-[GLOBAL strncmp]
-strncmp:
+;[GLOBAL strncmp]
+;strncmp:
 
 push	ebp
 mov	ebp, esp

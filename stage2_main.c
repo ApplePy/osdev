@@ -539,8 +539,98 @@ int main(void) {
       }
 
 	  else if (buf == 'a') {
-		  printss("bootsect.oem_name =");
+		  printss("fat type = ");
+		  printhex(fat_type, 8);
+		  printss("\n");
+		  printss("bootsect.oem_name = ");
 		  printss(bootsect.oem_name);
+		  printss("\n");
+		  printss("bootsect.bytes_per_sector = ");
+		  printhex(bootsect.bytes_per_sector, 4);
+		  printss("\n");
+		  printss("bootsect.sectors_per_cluster = ");
+		  printhex(bootsect.sectors_per_cluster, 2);
+		  printss("\n");
+		  printss("bootsect.reserved_sector_count = ");
+		  printhex(bootsect.reserved_sector_count, 4);
+		  printss("\n");
+		  printss("bootsect.table_count = ");
+		  printhex(bootsect.table_count, 2);
+		  printss("\n");
+		  printss("bootsect.root_entry_count = ");
+		  printhex(bootsect.root_entry_count, 4);
+		  printss("\n");
+		  printss("bootsect.total_sectors_16 = ");
+		  printhex(bootsect.total_sectors_16, 4);
+		  printss("\n");
+		  printss("bootsect.media_type = ");
+		  printhex(bootsect.media_type, 2);
+		  printss("\n");
+		  printss("bootsect.table_size_16 = ");
+		  printhex(bootsect.table_size_16, 4);
+		  printss("\n");
+		  printss("bootsect.sectors_per_track = ");
+		  printhex(bootsect.sectors_per_track, 4);
+		  printss("\n");
+		  printss("bootsect.head_side_count = ");
+		  printhex(bootsect.head_side_count, 4);
+		  printss("\n");
+		  printss("bootsect.hidden_sector_count = ");
+		  printhex(bootsect.hidden_sector_count, 8);
+		  printss("\n");
+		  printss("bootsect.total_sectors_32 = ");
+		  printhex(bootsect.total_sectors_32, 8);
+		  printss("\n");
+		  fat_extBS_32_t* f32 = (fat_extBS_32_t*)bootsect.extended_section;
+		  
+		  printss("f32->table_size_32 = ");
+		  printhex(f32->table_size_32, 8);
+		  printss("\n");
+		  printss("f32->extended_flags = ");
+		  printhex(f32->extended_flags, 4);
+		  printss("\n");
+		  printss("f32->fat_version = ");
+		  printhex(f32->fat_version, 4);
+		  printss("\n");
+		  printss("f32->root_cluster = ");
+		  printhex(f32->root_cluster, 8);
+		  printss("\n");
+		  printss("f32->fat_info = ");
+		  printhex(f32->fat_info, 4);
+		  printss("\n");
+		  printss("f32->backup_BS_sector = ");
+		  printhex(f32->backup_BS_sector, 4);
+		  printss("\n");
+		  printss("f32->reserved_0 = ");
+		  printhex(f32->reserved_0, 3);
+		  printss("\n");
+		  printss("f32->drive_number = ");
+		  printhex(f32->drive_number, 2);
+		  printss("\n");
+		  printss("f32->reserved_1 = ");
+		  printhex(f32->reserved_1, 2);
+		  printss("\n");
+		  printss("f32->boot_signature = ");
+		  printhex(f32->boot_signature, 2);
+		  printss("\n");
+		  printss("f32->volume_id = ");
+		  printhex(f32->volume_id, 8);
+		  printss("\n");
+		  printss("f32->volume_label = ");
+		  printss(f32->volume_label);
+		  printss("\n");
+		  printsss("f32->fat_type_label = ", 11);
+		  printsss(f32->fat_type_label, 8);
+		  printss("\n");
+		  
+		  printhex(FATRead(2), 8);
+		  printss("\n");
+		  
+		  char* file;
+		  directory_entry_t entry;
+		  directorySearch("test.txt", ((fat_extBS_32_t*)bootsect.extended_section)->root_cluster, &entry, NULL);
+		  //printss(&entry., );
+		  printss(entry.file_name);
 	  }
       
       else if ( buf == 'c' ) {
@@ -684,6 +774,7 @@ int main(void) {
       else if ( buf == '?' ) {
          
          printss( "\nInternal commands:" );
+		 printss( "\na                           - FAT test" );
          printss( "\nb                           - reboot" );
          printss( "\nc <addr>                    - call function" );
          printss( "\nd <addr> <count>            - dump range of memory" );
