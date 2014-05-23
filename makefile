@@ -45,7 +45,7 @@ stage3.o: stage3.asm
 	nasm -f aout -o stage3.o stage3.asm
 
 fillprep: fillprep.c
-	gcc -o fillprep fillprep.c -fno-stack-protector -shared
+	gcc -o fillprep fillprep.c
 
 clean:
 	rm -f *.bin *.o *.com fillprep *.txt
