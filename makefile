@@ -4,7 +4,7 @@ bootsect.bin: bootsect.asm
 	nasm -o bootsect.bin bootsect.asm
 
 mm.com: mm.o
-	ld -s -o mm.com --oformat binary -Ttext 0x100 mm.o -fno-stack-protector
+	ld -s -o mm.com --oformat binary -Ttext 0x100 mm.o -fno-stack-protector -shared
 
 mm.o: mm.asm
 	nasm -f aout -o mm.o mm.asm
@@ -16,7 +16,7 @@ stage2.txt: stage2.com fillprep
 	echo -n "g" >> stage2.txt
 
 stage2.com: stage2.o stage2_main.o string.o stringc.o FAT.o
-	ld -s -o stage2.com --oformat binary -Ttext 0x10200 stage2.o stage2_main.o string.o stringc.o FAT.o -fno-stack-protector
+	ld -s -o stage2.com --oformat binary -Ttext 0x10200 stage2.o stage2_main.o string.o stringc.o FAT.o -fno-stack-protector -shared
 
 stage2.o: stage2.asm
 	nasm -f aout -o stage2.o stage2.asm
@@ -39,7 +39,7 @@ stage3.txt: stage3.com fillprep
 	echo "" >> stage3.txt
 
 stage3.com: stage3.o
-	ld -s -o stage3.com --oformat binary -Ttext 0x200000 stage3.o -fno-stack-protector
+	ld -s -o stage3.com --oformat binary -Ttext 0x200000 stage3.o -fno-stack-protector -shared
 
 stage3.o: stage3.asm
 	nasm -f aout -o stage3.o stage3.asm
