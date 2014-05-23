@@ -22,13 +22,13 @@ stage2.o: stage2.asm
 	nasm -f aout -o stage2.o stage2.asm
 
 stage2_main.o: stage2_main.c
-	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o stage2_main.o stage2_main.c
+	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o stage2_main.o stage2_main.c -fno-stack-protector -shared
 	
 stringc.o: string.c
-	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o stringc.o string.c -std=c99
+	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o stringc.o string.c -std=c99 -fno-stack-protector -shared
 	
 FAT.o: FAT.c
-	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o FAT.o FAT.c -std=c99
+	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o FAT.o FAT.c -std=c99 -fno-stack-protector -shared
 
 string.o: string.asm string.h
 	nasm -f aout -o string.o string.asm
@@ -45,7 +45,7 @@ stage3.o: stage3.asm
 	nasm -f aout -o stage3.o stage3.asm
 
 fillprep: fillprep.c
-	gcc -o fillprep fillprep.c
+	gcc -o fillprep fillprep.c -fno-stack-protector -shared
 
 clean:
 	rm -f *.bin *.o *.com fillprep *.txt
