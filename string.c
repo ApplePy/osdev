@@ -40,7 +40,7 @@ int strcmp(const char *s1, const char *s2)
 int strncmp(const char *s1, const char *s2, size_t n)
 {
 	unsigned int count = 0;
-	while (count <= n) //its <= because we want to compare the '\0' too in case one string is a bit shorter than the other
+	while (count < n) //its <= because we want to compare the '\0' too in case one string is a bit shorter than the other
 	{
 		if (s1[count] == s2[count])
 		{
