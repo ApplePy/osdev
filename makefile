@@ -22,7 +22,7 @@ stage2.o: stage2.asm
 	nasm -f aout -o stage2.o stage2.asm
 
 stage2_main.o: stage2_main.c lib_asm.h lib_c.h string.h
-	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o stage2_main.o stage2_main.c
+	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o stage2_main.o stage2_main.c -fno-stack-protector -shared
 
 kernel.txt: kernel.bin fillprep stage2.txt delay.txt
 	cat stage2.txt > kernel.txt
@@ -39,13 +39,13 @@ kernel.o: kernel.asm
 	nasm -f aout -o kernel.o kernel.asm
 
 kernel_main.o: kernel_main.c lib_asm.h lib_c.h string.h
-	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o kernel_main.o kernel_main.c
+	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o kernel_main.o kernel_main.c -fno-stack-protector -shared
 
 lib_asm.o: lib_asm.asm lib_asm.h
 	nasm -f aout -o lib_asm.o lib_asm.asm
 
 lib_c.o: lib_c.c lib_c.h
-	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o lib_c.o lib_c.c
+	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o lib_c.o lib_c.c -fno-stack-protector -shared
 
 string.o: string.asm
 	nasm -f aout -o string.o string.asm
