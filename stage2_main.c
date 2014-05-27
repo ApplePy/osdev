@@ -629,8 +629,11 @@ int main(void) {
 		  char* file;
 		  directory_entry_t entry;
 		  directorySearch("test.txt", ((fat_extBS_32_t*)bootsect.extended_section)->root_cluster, &entry, NULL);
-		  //printss(&entry., );
 		  printss(entry.file_name);
+		  //printss(&entry., );
+		  getFile( "C:\\Windows", &file, &entry, 1);
+		  printss(entry.file_name);
+		  printss(file);
 	  }
       
       else if ( buf == 'c' ) {
