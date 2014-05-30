@@ -11,7 +11,8 @@ char *strncpy(char *s1, const char *s2, size_t n)
 {
 	unsigned int extern_iter = 0; //when s2's length is shorter than n, this allows the function to continue padding null characters
 
-	for (unsigned int iterator = 0; iterator < n; iterator++) //iterate through s2 up to char n, copying them to s1
+	unsigned int iterator = 0;
+	for (iterator = 0; iterator < n; iterator++) //iterate through s2 up to char n, copying them to s1
 	{
 		if (s2[iterator] != '\0')
 			s1[iterator] = s2[iterator];
@@ -34,13 +35,15 @@ char *strncpy(char *s1, const char *s2, size_t n)
 
 int strcmp(const char *s1, const char *s2)
 {
+	if (strlen(s1) != strlen(s2))
+		return s2-s1;
 	return strncmp(s1, s2, strlen(s1)); //It doesn't matter what the n is at this point - they should be the same length anyways
 }
 
 int strncmp(const char *s1, const char *s2, size_t n)
 {
 	unsigned int count = 0;
-	while (count < n) //its <= because we want to compare the '\0' too in case one string is a bit shorter than the other
+	while (count < n)
 	{
 		if (s1[count] == s2[count])
 		{

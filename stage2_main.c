@@ -398,6 +398,10 @@ int int13h_read_o(unsigned long sector_offset, unsigned char num_blocks, unsigne
 	if (sector_offset + num_blocks > part_length)
 		return -1;
 
+	//Size check; only read blocks if the resulting size read will still be between 0x4000 and 0x8000
+	if (readLocationOffset + num_blocks * 512 > (0x8000 - 0x4000))
+		return -1;
+
 	// Sanity check; BIOS int13h can only read up to 0x7F blocks
 	if (num_blocks > 0x7F)
 		return -1;
@@ -463,6 +467,10 @@ int int13h_write_o(unsigned long sector_offset, char num_blocks, unsigned long w
 	if (sector_offset + num_blocks > part_length)
 		return -1;
 
+	//Size check; only write blocks if the resulting size written will still be between 0x4000 and 0x8000
+	if (writeLocationOffset + num_blocks * 512 > (0x8000 - 0x4000))
+		return -1;
+
 	// Sanity check; BIOS int13h can only write up to 0x7F blocks
 	if (num_blocks > 0x7F)
 		return -1;
@@ -491,7 +499,7 @@ int int13h_write_o(unsigned long sector_offset, char num_blocks, unsigned long w
 int main(void) {
 
 	part_start_lba = 33543720;
-	part_length = 8385930;
+	part_length = 2*8385930;
 
 	FATInitialize();
 
@@ -626,12 +634,17 @@ int main(void) {
 		  printhex(FATRead(2), 8);
 		  printss("\n");
 		  
-		  char* file;
+		  char *file;
 		  directory_entry_t entry;
-		  directorySearch("test.txt", ((fat_extBS_32_t*)bootsect.extended_section)->root_cluster, &entry, NULL);
+		  //directorySearch("test.txt", ((fat_extBS_32_t*)bootsect.extended_section)->root_cluster, &entry, NULL);
 		  printss(entry.file_name);
 		  //printss(&entry., );
-		  getFile( "C:\\Windows", &file, &entry, 1);
+		  char* test = "C:\\test.txt";
+		  printhex(test,8);
+		  printss(test);
+		  printss("\nTest1 complete...\n\n\n\n");
+		  //getFile( 0x12345678, 0x34343434, 0x56565656, 0xabababab);
+		  getFile( test, &file, &entry, 1);
 		  printss(entry.file_name);
 		  printss(file);
 	  }

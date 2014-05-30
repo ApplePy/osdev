@@ -3,13 +3,13 @@
 
 #ifdef _MSC_VER
 #define _CRT_SECURE_NO_WARNINGS
-
-#include <iostream>
-#include <fstream>
-#include <cstring>
+#include <stdio.h>
 #endif
-//#include "C:\Users\Darryl\Documents\Visual Studio 2013\Projects\osdev\string.h"
 
+//comment this out when not testing FAT's functionality
+#define TESTING_CODE
+
+//FAT constant values
 #define END_CLUSTER_32 0x0FFFFFF8 //Use OSDev.org's suggestion of 0x0FFFFFF8 even though MSYS docs > OSdev.org.
 #define BAD_CLUSTER_32 0x0FFFFFF7
 #define FREE_CLUSTER_32 0x00000000
@@ -41,108 +41,24 @@
 #define NULL 0
 #endif
 
-
+//Declarations to use when testing with a virtual disk
 #ifdef _MSC_VER
 #define DISK_READ_LOCATION testing_disk
 #define DISK_WRITE_LOCATION testing_disk
-/*C PLUS PLUS CODE!!!*/
-std::fstream* fakeDisk;
 
+extern unsigned long part_length;
+
+FILE *fakeDisk;
 char testing_disk[512 * 0x7F]; //simulates 0x40000 read-in address location
 
-int int13h_read(unsigned long sector, unsigned char num) //a testing implementation of the real function to allow for testing on a disk contained in a file, rather than a real disk.
-{
-	if (num < 0) // get the absolute value of num
-		num = 0 - num;
+int int13h_read(unsigned long sector, unsigned char num);
+int int13h_read_o(unsigned long sector, unsigned char num, unsigned long memoffset);
+int int13h_write(unsigned long sector, unsigned char num);
+int int13h_write_o(unsigned long sector, unsigned char num, unsigned long memoffset);
 
-	fakeDisk = new std::fstream; //get around an access control issue
-	fakeDisk->open("C:\\Users\\Darryl\\Desktop\\part.img", std::ios::in | std::ios::binary /*| std::ios::out*/);
-
-	fakeDisk->seekg(sector * 512);
-	fakeDisk->read(DISK_READ_LOCATION, 512 * num);
-
-	if (fakeDisk->good() == false)
-	{
-		std::cerr << "Read issue!" << std::endl;
-		system("pause");
-	}
-
-	fakeDisk->close();
-	delete fakeDisk;
-
-	return 0;
-}
-
-int int13h_read_o(unsigned long sector, unsigned char num, unsigned long memoffset)
-{
-	if (num < 0) // get the absolute value of num
-		num = 0 - num;
-
-	fakeDisk = new std::fstream; //get around an access control issue
-	fakeDisk->open("C:\\Users\\Darryl\\Desktop\\part.img", std::ios::in | std::ios::binary /*| std::ios::out*/);
-
-	fakeDisk->seekg(sector * 512);
-	fakeDisk->read(DISK_READ_LOCATION + memoffset, 512 * num);
-
-	if (fakeDisk->good() == false)
-	{
-		std::cerr << "Read issue!" << std::endl;
-		system("pause");
-	}
-
-	fakeDisk->close();
-	delete fakeDisk;
-
-	return 0;
-}
-
-/*THE WRITE FUNCTIONS MAY NOT HAVE BEEN IMPLEMENTED CORRECTLY!*/
-
-int int13h_write(unsigned long sector, unsigned char num) //a testing implementation of the real function to allow for testing on a disk contained in a file, rather than a real disk.
-{
-	if (num < 0) // get the absolute value of num
-		num = 0 - num;
-
-	fakeDisk = new std::fstream; //get around an access control issue
-	fakeDisk->open("C:\\Users\\Darryl\\Desktop\\part.img", std::ios::in | std::ios::binary | std::ios::out);
-
-	fakeDisk->seekp(sector * 512);
-	fakeDisk->write(DISK_WRITE_LOCATION, 512 * num);
-
-	if (fakeDisk->good() == false)
-	{
-		std::cerr << "Read issue!" << std::endl;
-		system("pause");
-	}
-
-	fakeDisk->close();
-	delete fakeDisk;
-
-	return 0;
-}
-
-int int13h_write_o(unsigned long sector, unsigned char num, unsigned long memoffset)
-{
-	if (num < 0) // get the absolute value of num
-		num = 0 - num;
-
-	fakeDisk = new std::fstream; //get around an access control issue
-	fakeDisk->open("C:\\Users\\Darryl\\Desktop\\part.img", std::ios::in | std::ios::binary | std::ios::out);
-
-	fakeDisk->seekp(sector * 512);
-	fakeDisk->write(DISK_WRITE_LOCATION + memoffset, 512 * num);
-
-	if (fakeDisk->good() == false)
-	{
-		std::cerr << "Read issue!" << std::endl;
-		system("pause");
-	}
-
-	fakeDisk->close();
-	delete fakeDisk;
-
-	return 0;
-}
+void printss(char *s);
+void printsss(char *s, int n);
+void printhex(unsigned long num, int digits);
 
 #else
 #define DISK_READ_LOCATION 0x40000
@@ -154,6 +70,8 @@ int int13h_write_o(unsigned long sector, unsigned char num, unsigned long memoff
 #pragma pack(1)
 #endif
 
+
+//FAT directory and bootsector structures
 typedef struct fat_extBS_32
 {
 	//extended fat32 stuff
@@ -277,17 +195,19 @@ long_entry_t;
 #pragma pack(pop, default_val)
 #endif
 
+//Global variables
 unsigned int fat_type;
 unsigned int first_fat_sector;
 unsigned int first_data_sector;
 unsigned int total_clusters;
 fat_BS_t bootsect;
 
+//FAT functions
 int directorySearch(const char* filepart, const unsigned int cluster, directory_entry_t* file, unsigned int* entryOffset);
-void FATInitialize();
+int FATInitialize();
 int getFile(const char* filePath, char** fileContents, directory_entry_t* fileMeta, unsigned int readInOffset);
 int FATRead(unsigned int clusterNum);
-void clusterRead(unsigned int clusterNum, unsigned int clusterOffset);
+int clusterRead(unsigned int clusterNum, unsigned int clusterOffset);
 void convertToFATFormat(char* input);
 unsigned char ChkSum(unsigned char *pFcbName);
 int UpdateBootSect(fat_BS_t newContents); //don't forget the backup bootsector!
