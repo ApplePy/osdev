@@ -73,8 +73,8 @@ void printhex(unsigned long num, int digits);
 
 extern int int13h_read(unsigned long sector, unsigned char num);
 extern int int13h_read_o(unsigned long sector, unsigned char num, unsigned long memoffset);
-extern int int13h_write(unsigned long sector, unsigned char num);
-extern int int13h_write_o(unsigned long sector, unsigned char num, unsigned long memoffset);
+extern int int13h_write(unsigned long sector, char num);
+extern int int13h_write_o(unsigned long sector, char num, unsigned long memoffset);
 
 extern void printss(char *s);
 extern void printsss(char *s, int n);
