@@ -6,6 +6,8 @@
 #include <stdio.h>
 #endif
 
+#include "string.h"
+
 //comment this out when not testing FAT's functionality
 #define TESTING_CODE
 
@@ -37,6 +39,11 @@
 #define ENTRY_JAPAN 0x05
 #define LAST_LONG_ENTRY 0x40
 
+#define GET_CLUSTER_FROM_ENTRY(x) x.low_bits | (x.high_bits << (fat_type / 2))
+#define GET_LOW_BITS(x) x & (2^(fat_type / 2) - 1)
+#define GET_HIGH_BITS(x) x >> (fat_type / 2)
+#define CONCAT_HL_BITS(high, low) (high << (fat_type / 2)) | low
+
 #ifndef NULL
 #define NULL 0
 #endif
@@ -63,6 +70,15 @@ void printhex(unsigned long num, int digits);
 #else
 #define DISK_READ_LOCATION 0x40000
 #define DISK_WRITE_LOCATION 0x40000
+
+extern int int13h_read(unsigned long sector, unsigned char num);
+extern int int13h_read_o(unsigned long sector, unsigned char num, unsigned long memoffset);
+extern int int13h_write(unsigned long sector, unsigned char num);
+extern int int13h_write_o(unsigned long sector, unsigned char num, unsigned long memoffset);
+
+extern void printss(char *s);
+extern void printsss(char *s, int n);
+extern void printhex(unsigned long num, int digits);
 #endif
 
 #ifdef _MSC_VER

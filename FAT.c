@@ -75,8 +75,8 @@ int int13h_read_o(unsigned long sector, unsigned char num, unsigned long memoffs
 	if (sector + num > part_length)
 		return -1;
 
-	//Size check; only read blocks if the resulting size read will still be between 0x4000 and 0x8000
-	if (memoffset + num * 512 > (0x8000 - 0x4000))
+	//Size check; only read blocks if the resulting size read will still be between 0x40000 and 0x80000
+	if (memoffset + num * 512 > (0x80000 - 0x40000))
 		return -1;
 
 	// Sanity check; BIOS int13h can only read up to 0x7F blocks
@@ -209,8 +209,8 @@ int int13h_write_o(unsigned long sector, unsigned char num, unsigned long memoff
 	if (sector + num > part_length)
 		return -1;
 
-	//Size check; only write blocks if the resulting size written will still be between 0x4000 and 0x8000
-	if (memoffset + num * 512 > (0x8000 - 0x4000))
+	//Size check; only write blocks if the resulting size written will still be between 0x40000 and 0x80000
+	if (memoffset + num * 512 > (0x80000 - 0x40000))
 		return -1;
 
 	// Sanity check; BIOS int13h can only write up to 0x7F blocks
@@ -539,7 +539,10 @@ unsigned int allocateFreeFAT()
 		end_cluster = END_CLUSTER_12;
 	}
 	else
+	{
+		printss("Function allocateFreeFAT: fat_type is not valid!\n");
 		return BAD_CLUSTER_12;
+	}
 
 	unsigned int cluster = 2;
 	unsigned int clusterStatus = free_cluster;
@@ -562,7 +565,8 @@ unsigned int allocateFreeFAT()
 			printss("Function allocateFreeFAT: Error occurred with FATRead, aborting operations...\n");
 			return bad_cluster;
 		}
-		cluster++;
+
+		cluster++; //cluster is taken, check the next one
 	}
 	return bad_cluster;
 }
@@ -614,8 +618,10 @@ int clusterWrite(void* contentsToWrite, unsigned int contentSize, unsigned int c
 		return 0;
 }
 
-//recieves the cluster to read for a directory and the requested file, and will iterate through the directory's clusters - returning the entry for the searched file/subfolder, or no file/subfolder
-//return value holds success or failure code, file holds directory entry if file is found
+//. and .. entries not supported yet!
+
+//receives the cluster to read for a directory and the requested file, and will iterate through the directory's clusters - returning the entry for the searched file/subfolder, or no file/subfolder
+//return value holds success or failure code, file holds directory entry if file is found (can be NULL)
 //entryOffset points to where the directory entry was found in sizeof(directory_entry_t) (can be NULL)
 //returns: -1 is a general error, -2 is a "not found" error
 int directorySearch(const char* filepart, const unsigned int cluster, directory_entry_t* file, unsigned int* entryOffset)
@@ -649,7 +655,7 @@ int directorySearch(const char* filepart, const unsigned int cluster, directory_
 			{
 				unsigned int next_cluster = FATRead(cluster);
 
-				if (next_cluster >= END_CLUSTER_32)
+				if ((next_cluster >= END_CLUSTER_32 && fat_type == 32) || (next_cluster >= END_CLUSTER_16 && fat_type == 16) || (next_cluster >= END_CLUSTER_12 && fat_type == 12))
 					break;
 				else if (next_cluster < 0)
 				{
@@ -662,9 +668,12 @@ int directorySearch(const char* filepart, const unsigned int cluster, directory_
 		}
 		else
 		{
-			if (memcpy(file, file_metadata, sizeof(directory_entry_t)) != file); //copy found data to file
+			if (file != NULL)
 			{
-				printss("Function directorySearch: Not sure what values memcpy returns. Continuing execution...\n");
+				if (memcpy(file, file_metadata, sizeof(directory_entry_t)) != file); //copy found data to file
+				{
+					printss("Function directorySearch: Not sure what values memcpy returns. Continuing execution...\n");
+				}
 			}
 
 			if (entryOffset != NULL)
@@ -676,6 +685,8 @@ int directorySearch(const char* filepart, const unsigned int cluster, directory_
 
 	return -2; //nothing found, return error.
 }
+
+//. and .. entries not supported yet!
 
 //pass in the cluster to write the directory to and the directory struct to write.
 //struct should only have a file name, attributes, and size. the rest will be filled in automatically
@@ -703,11 +714,11 @@ int directoryAdd(const unsigned int cluster, directory_entry_t* file)
 			{
 				unsigned int next_cluster = FATRead(cluster);
 
-				if (next_cluster >= END_CLUSTER_32) //no free spaces left in the directory cluster, and no more clusters to search. Allocate a new one.
+				if ((next_cluster >= END_CLUSTER_32 && fat_type == 32) || (next_cluster >= END_CLUSTER_16 && fat_type == 16) || (next_cluster >= END_CLUSTER_12 && fat_type == 12)) //no free spaces left in the directory cluster, and no more clusters to search. Allocate a new one.
 				{
 					next_cluster = allocateFreeFAT();
 
-					if (next_cluster == BAD_CLUSTER_32 || next_cluster == BAD_CLUSTER_16 || next_cluster == BAD_CLUSTER_12) //allocation unsuccessful
+					if ((next_cluster == BAD_CLUSTER_32 && fat_type == 32) || (next_cluster == BAD_CLUSTER_16 && fat_type == 16) || (next_cluster == BAD_CLUSTER_12 && fat_type == 12)) //allocation unsuccessful
 					{
 						printss("Function directoryAdd: allocation of new cluster failed. Aborting...\n");
 						break;
@@ -737,14 +748,14 @@ int directoryAdd(const unsigned int cluster, directory_entry_t* file)
 			//allocate new cluster for new file
 			unsigned int new_cluster = allocateFreeFAT();
 
-			if (new_cluster == BAD_CLUSTER_32 || new_cluster == BAD_CLUSTER_16 || new_cluster == BAD_CLUSTER_12) //allocation unsuccessful
+			if ((new_cluster == BAD_CLUSTER_32 && fat_type == 32) || (new_cluster == BAD_CLUSTER_16 && fat_type ==16) || (new_cluster == BAD_CLUSTER_12 && fat_type == 12)) //allocation unsuccessful
 			{
 				printss("Function directoryAdd: allocation of new cluster failed. Aborting...\n");
 				break;
 			}
 
-			file->low_bits = new_cluster & 0x0000FFFF;
-			file->high_bits = new_cluster >> 16;
+			file->low_bits = GET_LOW_BITS(new_cluster);
+			file->high_bits = GET_HIGH_BITS(new_cluster);
 
 			//copy data to empty location
 			if (memcpy(file_metadata, file, sizeof(directory_entry_t)) != file_metadata)
@@ -760,16 +771,25 @@ int directoryAdd(const unsigned int cluster, directory_entry_t* file)
 		}
 	}
 
-	return -1; //nothing found, return error.
+	return -1; //return error.
 }
 
 //retrieves a specified file from the File System (readInOffset is in clusters)
+//Returns: -1 is general error, -2 is directory not found, -3 is path specified is a directory instead of a file
 int getFile(const char* filePath, char** fileContents, directory_entry_t* fileMeta, unsigned int readInOffset)
 {
 	char fileNamePart[256]; //holds the part of the path to be searched
 
 	unsigned short start = 3; //starting at 3 to skip the "C:\" bit
-	unsigned int active_cluster = ((fat_extBS_32_t*)bootsect.extended_section)->root_cluster; //holds the cluster to be searched for directory entries related to the path
+	unsigned int active_cluster;
+	if (fat_type == 32)
+		active_cluster = ((fat_extBS_32_t*)bootsect.extended_section)->root_cluster; //holds the cluster to be searched for directory entries related to the path
+	else
+	{
+		printss("Function getFile: FAT16 and FAT12 are not supported!\n");
+		return -1;
+	}
+
 	directory_entry_t file_info; //holds found directory info
 
 	//starting at 3 to skip the "C:\" bit
@@ -793,9 +813,14 @@ int getFile(const char* filePath, char** fileContents, directory_entry_t* fileMe
 
 			if (retVal == -2) //no directory matching found
 				return -2;
+			else if (retVal == -1) //error occured
+			{
+				printss("Function getFile: An error occurred in directorySearch. Aborting...\n");
+				return retVal;
+			}
 
 			start = iterator + 1;
-			active_cluster = file_info.low_bits | (file_info.high_bits << 16); //shift the high bits into their appropriate spots, and OR with low_bits (could also add, I think) in prep for next search
+			active_cluster = GET_CLUSTER_FROM_ENTRY(file_info); //shift the high bits into their appropriate spots, and OR with low_bits (could also add, I think) in prep for next search
 		}
 	}
 
@@ -806,13 +831,23 @@ int getFile(const char* filePath, char** fileContents, directory_entry_t* fileMe
 		if (readInOffset < 1 || (readInOffset * (unsigned short)bootsect.bytes_per_sector * (unsigned short)bootsect.sectors_per_cluster) + file_info.file_size > 262144) //prevent offsets that extend into FATRead's working range or outside the allocated BIOS int13h space
 			return -3; //you cannot have an offset below 1, nor can you read in more than 256kB
 
-		unsigned int cluster = file_info.low_bits | (file_info.high_bits << 16); //initialize file read-in with first cluster of file
+		unsigned int cluster = GET_CLUSTER_FROM_ENTRY(file_info); //initialize file read-in with first cluster of file
 		unsigned int clusterReadCount = 0;
 		while (cluster < END_CLUSTER_32)
 		{
 			clusterRead(cluster, clusterReadCount + readInOffset); //Always offset by at least one, so any file operations happening exactly at DISK_READ_LOCATION (e.g. FAT Table lookups) don't overwrite the data (this is essentially backwards compatibility with previously written code)
 			clusterReadCount++;
 			cluster = FATRead(cluster);
+			if (cluster == BAD_CLUSTER_32)
+			{
+				printss("Function getFile: the cluster chain is corrupted with a bad cluster. Aborting...\n");
+				return -1;
+			}
+			else if (cluster == -1) //THIS WILL *NOT* WORK!!!! SIGN PROBLEM
+			{
+				printss("Function getFile: an error occurred in FATRead. Aborting...\n");
+				return -1;
+			}
 		}
 
 		*fileContents = DISK_READ_LOCATION + (unsigned short)bootsect.sectors_per_cluster * (unsigned short)bootsect.bytes_per_sector * readInOffset; //return a pointer in the BIOS read-in space where the file is.
@@ -820,7 +855,140 @@ int getFile(const char* filePath, char** fileContents, directory_entry_t* fileMe
 		return 0; //file successfully found
 	}
 	else
-		return -2; //the path specified was a directory
+		return -3; //the path specified was a directory
+}
+
+//writes a new file to the file system
+//filepath: specifies the path to where the file will be written
+//filecontents: contains the char array to the data that will be written
+//fileMeta: contains the metadata that will be written. struct should only have a file name, attributes, and size. the rest will be filled in automatically
+//returns: -1 is general error, -2 indicates a bad path, -3 indicates file with same name already exists, -4 indicates file size error
+int putFile(const char* filePath, char** fileContents, directory_entry_t* fileMeta)
+{
+	char fileNamePart[256]; //holds the part of the path to be searched
+
+	unsigned short start = 3; //starting at 3 to skip the "C:\" bit
+	unsigned int active_cluster; //holds the cluster to be searched for directory entries related to the path
+	if (fat_type == 32)
+	 active_cluster = ((fat_extBS_32_t*)bootsect.extended_section)->root_cluster;
+	else
+	{
+		printss("Function putFile: FAT16 and FAT12 are not supported!\n");
+		return -1;
+	}
+
+	directory_entry_t file_info; //holds found directory info
+
+	//starting at 3 to skip the "C:\" bit
+	unsigned int iterator = 3;
+	for (iterator = 3; filePath[iterator - 1] != '\0'; iterator++)
+	{
+		if (filePath[iterator] == '\\' || filePath[iterator] == '\0')
+		{
+			//clean out fileNamePart before copy
+			if (memset(fileNamePart, '\0', 256) != fileNamePart)
+			{
+				printss("Function putFile: Not sure what values memset returns. Continuing execution...\n");
+			}
+			//hacked-together strcpy derivative...
+			if (memcpy(fileNamePart, filePath + start, iterator - start) != fileNamePart)
+			{
+				printss("Function putFile: Not sure what values memcpy returns. Continuing execution...\n");
+			}
+
+			int retVal = directorySearch(fileNamePart, active_cluster, &file_info, NULL); //go looking for a directory in the specified cluster with the specified name
+
+			if (retVal == -2) //no directory matching found
+				return -2;
+			else if (retVal == -1) //error occured
+			{
+				printss("Function putFile: An error occurred in directorySearch. Aborting...\n");
+				return retVal;
+			}
+
+			start = iterator + 1;
+			active_cluster = GET_CLUSTER_FROM_ENTRY(file_info); //shift the high bits into their appropriate spots, and OR with low_bits (could also add, I think) in prep for next search
+		}
+	}
+
+	//directory to receive the file is now found, and its cluster is stored in active_cluster. Search the directory to ensure the specified file name is not already in use
+	int retVal = directorySearch(fileMeta->file_name, active_cluster, NULL, NULL);
+	if (retVal == -1)
+	{
+		printss("Function putFile: directorySearch encountered an error. Aborting...\n");
+		return -1;
+	}
+	else if (retVal != -2)
+	{
+		printss("Function putFile: a file matching the name given already exists. Aborting...\n");
+		return -3;
+	}
+
+	if ((file_info.attributes & FILE_DIRECTORY) == FILE_DIRECTORY) //if final directory listing found is a directory
+	{
+		if (directoryAdd(active_cluster, fileMeta) != 0)
+		{
+			printss("Function putFile: directoryAdd encountered an error. Aborting...\n");
+			return -1;
+		}
+
+		//now filling file_info with the information of the file directory entry
+		retVal = directorySearch(fileMeta->file_name, active_cluster, &file_info, NULL);
+		if (retVal == -2)
+		{
+			printss("Function putFile: directoryAdd did not properly write the new file's entry to disk. Aborting...\n");
+			return -2;
+		}
+		else if (retVal != 0)
+		{
+			printss("Function putFile: directorySearch has encountered an error. Aborting...\n");
+			return -1;
+		}
+
+		active_cluster = GET_CLUSTER_FROM_ENTRY(file_info);
+		unsigned int dataLeftToWrite = file_info.file_size;
+		while (dataLeftToWrite > 0)
+		{
+			unsigned int dataWrite = 0;
+			if (dataLeftToWrite >= bootsect.bytes_per_sector * bootsect.sectors_per_cluster)
+				dataWrite = bootsect.bytes_per_sector * bootsect.sectors_per_cluster;
+			else
+				dataWrite = dataLeftToWrite;
+
+			//Always offset by at least one, so any file operations happening exactly at DISK_READ_LOCATION (e.g. FAT Table lookups) don't overwrite the data (this is essentially backwards compatibility with previously written code)
+			if (clusterWrite(*fileContents + (file_info.file_size - dataLeftToWrite), dataWrite, 1, active_cluster) == 0)
+			{
+				printss("Function putFile: clusterWrite encountered an error. Aborting...\n");
+				return -1;
+			}
+
+			dataLeftToWrite -= dataWrite; //subtract the bytes that were just written
+
+			//if there's no data left to write, exit
+			if (dataLeftToWrite <= 0)
+				break;
+			
+			//there's more data to write, so allocate new cluster, change fat of current cluster to point to new cluster, and change active cluster to new cluster
+
+			unsigned int new_cluster = allocateFreeFAT();
+
+			if ((new_cluster == BAD_CLUSTER_32 && fat_type == 32) || (new_cluster == BAD_CLUSTER_16 && fat_type == 16) || (new_cluster == BAD_CLUSTER_12 && fat_type == 12)) //allocation error
+			{
+				printss("Function putFile: allocateFreeFAT encountered an error. Aborting...\n");
+				return -1;
+			}
+			if (FATWrite(active_cluster, new_cluster) != 0)
+			{
+				printss("Function putFile: FATWrite encountered an error. Aborting...\n");
+				return -1;
+			}
+			active_cluster = new_cluster;
+		}
+
+		return 0; //file successfully written
+	}
+	else
+		return -2; //invalid path!
 }
 
 //clock hasn't been implemented yet
@@ -979,7 +1147,7 @@ int main()
 	strcpy((char*)(newFile.file_name), "ADDTEST.EXP");
 	newFile.file_size = 0;
 
-	directoryAdd(folder.low_bits | (folder.high_bits) << 16, &newFile);
+	directoryAdd(GET_CLUSTER_FROM_ENTRY(folder), &newFile);
 
 	getFile("C:\\folder\\addtest.exp", &contents, &folder, 1);
 
