@@ -647,6 +647,8 @@ int main(void) {
 		  getFile( test, &file, &entry, 1);
 		  printss(entry.file_name);
 		  printss(file);
+		  
+		  directoryList(((fat_extBS_32_t*)(bootsect.extended_section))->root_cluster, NULL);
 	  }
       
       else if ( buf == 'c' ) {

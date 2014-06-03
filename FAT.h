@@ -34,15 +34,17 @@
 #define FILE_DIRECTORY 0x10
 #define FILE_ARCHIVE 0x20
 #define FILE_LONG_NAME FILE_READ_ONLY|FILE_HIDDEN|FILE_SYSTEM|FILE_VOLUME_ID
+#define FILE_LONG_NAME_MASK FILE_READ_ONLY|FILE_HIDDEN|FILE_SYSTEM|FILE_VOLUME_ID|FILE_DIRECTORY|FILE_ARCHIVE
+#define FILE_LAST_LONG_ENTRY 0x40
 #define ENTRY_FREE 0xE5
 #define ENTRY_END 0x00
 #define ENTRY_JAPAN 0x05
 #define LAST_LONG_ENTRY 0x40
 
 #define GET_CLUSTER_FROM_ENTRY(x) x.low_bits | (x.high_bits << (fat_type / 2))
-#define GET_LOW_BITS(x) x & (2^(fat_type / 2) - 1)
-#define GET_HIGH_BITS(x) x >> (fat_type / 2)
-#define CONCAT_HL_BITS(high, low) (high << (fat_type / 2)) | low
+#define GET_ENTRY_LOW_BITS(x) x & (2^(fat_type / 2) - 1)
+#define GET_ENTRY_HIGH_BITS(x) x >> (fat_type / 2)
+#define CONCAT_ENTRY_HL_BITS(high, low) (high << (fat_type / 2)) | low
 
 #ifndef NULL
 #define NULL 0
@@ -68,8 +70,8 @@ void printsss(char *s, int n);
 void printhex(unsigned long num, int digits);
 
 #else
-#define DISK_READ_LOCATION 0x40000
-#define DISK_WRITE_LOCATION 0x40000
+#define DISK_READ_LOCATION 0x4000
+#define DISK_WRITE_LOCATION 0x4000
 
 extern int int13h_read(unsigned long sector, unsigned char num);
 extern int int13h_read_o(unsigned long sector, unsigned char num, unsigned long memoffset);

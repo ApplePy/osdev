@@ -620,6 +620,67 @@ int clusterWrite(void* contentsToWrite, unsigned int contentSize, unsigned int c
 
 //. and .. entries not supported yet!
 
+//receives the cluster to list, and will list all regular entries and directories, plus whatever attributes are passed in
+//returns: -1 is a general error
+int directoryList(const unsigned int cluster, unsigned char attributesToAdd)
+{
+	//unsigned char attributes = FILE_HIDDEN | FILE_LONG_NAME | FILE_SYSTEM;
+	
+	/*char searchName[13] = { '\0' };
+	strcpy(searchName, filepart);
+	convertToFATFormat(searchName);*/
+
+	//read cluster of the directory/subdirectory
+	if (clusterRead(cluster, 0) != 0)
+	{
+		printss("Function directoryList: clusterRead encountered an error. Aborting...\n");
+		return -1;
+	}
+	directory_entry_t* file_metadata = (directory_entry_t*)DISK_READ_LOCATION;
+	unsigned int meta_pointer_iterator_count = 0; //holds how many directories have been looked at
+	
+	//iterate through clusters, checking for a file name match
+	while (1)
+	{
+		if (file_metadata->file_name[0] == ENTRY_END) //end of directory entries; searching can stop now
+		{
+			break;
+		}
+		else if ((file_metadata->file_name)[0] == ENTRY_FREE) //if the entry is a free entry
+		{	
+			if (meta_pointer_iterator_count < bootsect.bytes_per_sector * bootsect.sectors_per_cluster / sizeof(directory_entry_t) - 1) //if the pointer hasn't iterated outside of what that cluster can hold
+			{
+				file_metadata++;
+				meta_pointer_iterator_count++;
+			}
+			else //search next cluster in directory
+			{
+				unsigned int next_cluster = FATRead(cluster);
+
+				if ((next_cluster >= END_CLUSTER_32 && fat_type == 32) || (next_cluster >= END_CLUSTER_16 && fat_type == 16) || (next_cluster >= END_CLUSTER_12 && fat_type == 12))
+					break;
+				else if (next_cluster < 0)
+				{
+					printss("Function directorySearch: FATRead encountered an error. Aborting...\n");
+					return -1;
+				}
+				else
+					return directoryList(next_cluster, attributesToAdd); //search next cluster
+			}
+		}
+		else
+		{
+			printss(file_metadata->file_name);
+			printss("\n");
+			
+			file_metadata++;
+			meta_pointer_iterator_count++;
+		}
+	}
+
+	return 0; //done searching
+}
+
 //receives the cluster to read for a directory and the requested file, and will iterate through the directory's clusters - returning the entry for the searched file/subfolder, or no file/subfolder
 //return value holds success or failure code, file holds directory entry if file is found (can be NULL)
 //entryOffset points to where the directory entry was found in sizeof(directory_entry_t) (can be NULL)
@@ -754,8 +815,8 @@ int directoryAdd(const unsigned int cluster, directory_entry_t* file)
 				break;
 			}
 
-			file->low_bits = GET_LOW_BITS(new_cluster);
-			file->high_bits = GET_HIGH_BITS(new_cluster);
+			file->low_bits = GET_ENTRY_LOW_BITS(new_cluster);
+			file->high_bits = GET_ENTRY_HIGH_BITS(new_cluster);
 
 			//copy data to empty location
 			if (memcpy(file_metadata, file, sizeof(directory_entry_t)) != file_metadata)
