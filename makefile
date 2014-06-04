@@ -15,19 +15,22 @@ stage2.txt: stage2.bin fillprep
 	echo "" >> stage2.txt
 	echo -n "g" >> stage2.txt
 
-stage2.bin: stage2.o stage2_main.o lib_asm.o lib_c.o string.o FAT.o
+stage2.bin: stage2.o stage2_main.o lib_asm.o lib_c.o string.o stringc.o FAT.o
 	ld -s -o stage2.bin --oformat binary -Ttext 0x10200 stage2.o stage2_main.o lib_asm.o lib_c.o string.o stringc.o FAT.o
 
 stage2.o: stage2.asm
 	nasm -f aout -o stage2.o stage2.asm
 
-stage2_main.o: stage2_main.c lib_asm.h lib_c.h string.h
+stage2_main.o: stage2_main.c lib_asm.h lib_c.h string.h FAT.h
 	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o stage2_main.o stage2_main.c -fno-stack-protector -shared
 	
 stringc.o: string.c
 	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o stringc.o string.c -fno-stack-protector -shared
 	
-FAT.o: FAT.c
+delay.txt:
+	for i in `seq 1 50`; do echo "" >> delay.txt; done
+	
+FAT.o: FAT.c FAT.h lib_asm.h lib_c.h
 	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o FAT.o FAT.c -fno-stack-protector -shared
 
 kernel.txt: kernel.bin fillprep stage2.txt delay.txt

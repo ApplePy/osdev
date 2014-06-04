@@ -89,10 +89,8 @@ extern Disk_Address_Packet disk_address_packet;
 
 int main(void) {
 
-part_start_lba = 33543720;
+	part_start_lba = 33543720;
 	part_length = 2*8385930;
-
-	FATInitialize();
 
    char buf, *addr, checksum;
    int i, count, lba_sector, num_blocks;
@@ -105,6 +103,8 @@ part_start_lba = 33543720;
    printss( "\nEIP = " );
    printhex( get_eip(), 8 );
    enableA20();
+   
+   FATInitialize();
    
    printss( "\npart_start_lba=" );
    printhex( part_start_lba, 8 );
@@ -335,21 +335,6 @@ part_start_lba = 33543720;
             continue;
          
          outb( ( unsigned long ) addr, count );
-      
-      }
-      
-	  else if ( buf == 'p' ) {
-      
-         if ( gethex( ( void * ) &x, 4, -1 ) != 0 )
-            continue;
-         
-         if ( gethex( ( void * ) &y, 4, -1 ) != 0 )
-            continue;
-         
-         if ( gethex( ( void * ) &colour, 2, -1 ) != 0 )
-            continue;
-         
-         setpixel( x, y, colour );
       
       }
 	  

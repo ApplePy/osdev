@@ -646,7 +646,7 @@ int directoryList(const unsigned int cluster, unsigned char attributesToAdd)
 		{
 			break;
 		}
-		else if ((file_metadata->file_name)[0] == ENTRY_FREE) //if the entry is a free entry
+		else if (((file_metadata->file_name)[0] == ENTRY_FREE) || ((file_metadata->attributes & FILE_LONG_NAME) == FILE_LONG_NAME)) //if the entry is a free entry
 		{	
 			if (meta_pointer_iterator_count < bootsect.bytes_per_sector * bootsect.sectors_per_cluster / sizeof(directory_entry_t) - 1) //if the pointer hasn't iterated outside of what that cluster can hold
 			{

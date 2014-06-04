@@ -7,6 +7,8 @@
 #endif
 
 #include "string.h"
+#include "lib_c.h"
+#include "lib_asm.h"
 
 //comment this out when not testing FAT's functionality
 #define TESTING_CODE
@@ -33,8 +35,8 @@
 #define FILE_VOLUME_ID 0x08
 #define FILE_DIRECTORY 0x10
 #define FILE_ARCHIVE 0x20
-#define FILE_LONG_NAME FILE_READ_ONLY|FILE_HIDDEN|FILE_SYSTEM|FILE_VOLUME_ID
-#define FILE_LONG_NAME_MASK FILE_READ_ONLY|FILE_HIDDEN|FILE_SYSTEM|FILE_VOLUME_ID|FILE_DIRECTORY|FILE_ARCHIVE
+#define FILE_LONG_NAME (FILE_READ_ONLY|FILE_HIDDEN|FILE_SYSTEM|FILE_VOLUME_ID)
+#define FILE_LONG_NAME_MASK (FILE_READ_ONLY|FILE_HIDDEN|FILE_SYSTEM|FILE_VOLUME_ID|FILE_DIRECTORY|FILE_ARCHIVE)
 #define FILE_LAST_LONG_ENTRY 0x40
 #define ENTRY_FREE 0xE5
 #define ENTRY_END 0x00
@@ -70,17 +72,13 @@ void printsss(char *s, int n);
 void printhex(unsigned long num, int digits);
 
 #else
-#define DISK_READ_LOCATION 0x4000
-#define DISK_WRITE_LOCATION 0x4000
+#define DISK_READ_LOCATION 0x40000
+#define DISK_WRITE_LOCATION 0x40000
 
 extern int int13h_read(unsigned long sector, unsigned char num);
 extern int int13h_read_o(unsigned long sector, unsigned char num, unsigned long memoffset);
-extern int int13h_write(unsigned long sector, char num);
-extern int int13h_write_o(unsigned long sector, char num, unsigned long memoffset);
-
-extern void printss(char *s);
-extern void printsss(char *s, int n);
-extern void printhex(unsigned long num, int digits);
+extern int int13h_write(unsigned long sector, unsigned char num);
+extern int int13h_write_o(unsigned long sector, unsigned char num, unsigned long memoffset);
 #endif
 
 #ifdef _MSC_VER
