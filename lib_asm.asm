@@ -36,7 +36,7 @@ ret
 
 ; ind: Read double-word from input port
 [GLOBAL ind]
-indw:
+ind:
 push  edx
 
 mov   edx, eax
@@ -108,7 +108,7 @@ mov   ebp, esp
 push  edx
 
 mov   edx, eax
-mov   al, [ebp+8]
+mov   ax, [ebp+8]
 out   dx, ax
 
 pop   edx
@@ -117,13 +117,13 @@ ret
 
 ; outd: Write double-word to output port
 [GLOBAL outd]
-outdw:
+outd:
 push  ebp
 mov   ebp, esp
 push  edx
 
 mov   edx, eax
-mov   al, [ebp+8]
+mov   eax, [ebp+8]
 out   dx, eax
 
 pop   edx
