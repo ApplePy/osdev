@@ -235,7 +235,13 @@ int main(void) {
 		  printss(entry.file_name);
 		  printss(file);
 		  
-		  directoryList(((fat_extBS_32_t*)(bootsect.extended_section))->root_cluster, NULL);
+		  printss("File printed once.\n");
+		  
+		  directoryList(((fat_extBS_32_t*)(bootsect.extended_section))->root_cluster, NULL, NULL);
+		  printss("File printed twice.\n");
+		  directoryList(((fat_extBS_32_t*)(bootsect.extended_section))->root_cluster, FILE_ARCHIVE, 1);
+		  printss("File printed thrice.\n");
+		  directoryList(((fat_extBS_32_t*)(bootsect.extended_section))->root_cluster, FILE_HIDDEN, 1);
 	  }
 
       else if ( buf == 'c' ) {

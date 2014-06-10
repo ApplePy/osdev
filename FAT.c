@@ -622,13 +622,18 @@ int clusterWrite(void* contentsToWrite, unsigned int contentSize, unsigned int c
 
 //receives the cluster to list, and will list all regular entries and directories, plus whatever attributes are passed in
 //returns: -1 is a general error
-int directoryList(const unsigned int cluster, unsigned char attributesToAdd)
+int directoryList(const unsigned int cluster, unsigned char attributesToAdd, short exclusive)
 {
-	//unsigned char attributes = FILE_HIDDEN | FILE_LONG_NAME | FILE_SYSTEM;
+	const unsigned char attributes_to_hide = (FILE_HIDDEN | FILE_SYSTEM); //FILE_LONG_NAME is ALWAYS hidden.
+	unsigned char attributes_to_display = 0;
 	
-	/*char searchName[13] = { '\0' };
-	strcpy(searchName, filepart);
-	convertToFATFormat(searchName);*/
+	//attribute display error
+	
+	
+	if ( attributesToAdd == NULL)
+		attributes_to_display = 0xFF ^ attributes_to_hide;
+	else
+		attributes_to_display = attributesToAdd;
 
 	//read cluster of the directory/subdirectory
 	if (clusterRead(cluster, 0) != 0)
@@ -646,9 +651,9 @@ int directoryList(const unsigned int cluster, unsigned char attributesToAdd)
 		{
 			break;
 		}
-		else if (((file_metadata->file_name)[0] == ENTRY_FREE) || ((file_metadata->attributes & FILE_LONG_NAME) == FILE_LONG_NAME)) //if the entry is a free entry
+		else if (((file_metadata->file_name)[0] == ENTRY_FREE) || ((file_metadata->attributes & FILE_LONG_NAME) == FILE_LONG_NAME) || ((file_metadata->attributes & attributes_to_display) == 0) || (exclusive != 0 &&((file_metadata->attributes & attributes_to_display) != attributes_to_display))) //if the entry is a free entry, a long name, or does not contain any (or exactly all) of the wanted attributes
 		{	
-			if (meta_pointer_iterator_count < bootsect.bytes_per_sector * bootsect.sectors_per_cluster / sizeof(directory_entry_t) - 1) //if the pointer hasn't iterated outside of what that cluster can hold
+			if (meta_pointer_iterator_count < bootsect.bytes_per_sector * bootsect.sectors_per_cluster / sizeof(directory_entry_t) - 2) //if the pointer hasn't iterated outside of what that cluster can hold
 			{
 				file_metadata++;
 				meta_pointer_iterator_count++;
@@ -665,12 +670,17 @@ int directoryList(const unsigned int cluster, unsigned char attributesToAdd)
 					return -1;
 				}
 				else
-					return directoryList(next_cluster, attributesToAdd); //search next cluster
+					return directoryList(next_cluster, attributesToAdd, exclusive); //search next cluster
 			}
 		}
 		else
 		{
-			printss(file_metadata->file_name);
+			printsss(file_metadata->file_name, 11);
+			printss("\t");
+			if ((file_metadata->attributes & FILE_DIRECTORY) == FILE_DIRECTORY)
+			{
+				printss("DIR");
+			}
 			printss("\n");
 			
 			file_metadata++;

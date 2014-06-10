@@ -72,8 +72,12 @@ void printsss(char *s, int n);
 void printhex(unsigned long num, int digits);
 
 #else
+#ifndef DISK_READ_LOCATION
 #define DISK_READ_LOCATION 0x40000
+#endif
+#ifndef DISK_WRITE_LOCATION
 #define DISK_WRITE_LOCATION 0x40000
+#endif
 
 extern int int13h_read(unsigned long sector, unsigned char num);
 extern int int13h_read_o(unsigned long sector, unsigned char num, unsigned long memoffset);
@@ -220,6 +224,7 @@ fat_BS_t bootsect;
 
 //FAT functions
 int directorySearch(const char* filepart, const unsigned int cluster, directory_entry_t* file, unsigned int* entryOffset);
+int directoryList(const unsigned int cluster, unsigned char attributesToAdd, short exclusive);
 int FATInitialize();
 int getFile(const char* filePath, char** fileContents, directory_entry_t* fileMeta, unsigned int readInOffset);
 int FATRead(unsigned int clusterNum);
