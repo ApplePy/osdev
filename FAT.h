@@ -173,7 +173,6 @@ typedef struct directory_entry
 	unsigned short last_modification_date;
 	unsigned short low_bits;
 	unsigned int file_size;
-
 }
 #ifndef _MSC_VER
 __attribute__((packed))
@@ -226,8 +225,10 @@ fat_BS_t bootsect;
 int directorySearch(const char* filepart, const unsigned int cluster, directory_entry_t* file, unsigned int* entryOffset);
 int directoryList(const unsigned int cluster, unsigned char attributesToAdd, short exclusive);
 int FATInitialize();
-int getFile(const char* filePath, char** fileContents, directory_entry_t* fileMeta, unsigned int readInOffset);
 int FATRead(unsigned int clusterNum);
+int FATWrite(unsigned int clusterNum, unsigned int clusterVal);
+int getFile(const char* filePath, char** fileContents, directory_entry_t* fileMeta, unsigned int readInOffset);
+int putFile(const char* filePath, char** fileContents, directory_entry_t* fileMeta);
 int clusterRead(unsigned int clusterNum, unsigned int clusterOffset);
 void convertToFATFormat(char* input);
 void convertFromFATFormat(char* input, char* output);

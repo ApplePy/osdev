@@ -134,7 +134,7 @@ int main(void) {
 
       }
        else if (buf == 'a') {
-		  printss("fat type = ");
+		  /*printss("fat type = ");
 		  printhex(fat_type, 8);
 		  printss("\n");
 		  printss("bootsect.oem_name = ");
@@ -219,7 +219,7 @@ int main(void) {
 		  printss("\n");
 		  
 		  printhex(FATRead(2), 8);
-		  printss("\n");
+		  printss("\n");*/
 		  
 		  char *file;
 		  directory_entry_t entry;
@@ -247,6 +247,68 @@ int main(void) {
 		  convertFromFATFormat(entry.file_name, testing );
 		  printss("\n");
 		  printss(testing);
+		  
+		  /*printss("\n");
+		  unsigned int new_cluster = allocateFreeFAT();
+		  printhex(new_cluster, 8);
+		  printss("\n");
+		  printhex(FATRead(new_cluster), 8);
+		  if (FATWrite(new_cluster, FREE_CLUSTER_32) != 0)
+			printss ("Major error 1!\n");
+		  
+		  printss("\n");
+		  printhex(FATRead(new_cluster), 8);
+		  
+		  printss("\n");
+		  new_cluster = allocateFreeFAT();
+		  printhex(new_cluster, 8);
+		  printss("\n");
+		  printhex(FATRead(new_cluster), 8);
+		  if (FATWrite(new_cluster, FREE_CLUSTER_32) != 0)
+			printss ("Major error 1!\n");
+		  
+		  printss("\n");
+		  printhex(FATRead(new_cluster), 8);*/ //this commented-out block works
+		  
+		  char* inputest = "Testing putFile!";
+		  directory_entry_t new_entry;
+		  strcpy (new_entry.file_name, "putTest.txt");
+		  new_entry.attributes = FILE_ARCHIVE;
+		  new_entry.file_size = 17; //strlen(inputest);
+		  
+		  printhex(putFile ("C:\\", &inputest, &new_entry), 8);
+		  getFile("C:\\putTest.txt", &file, &entry, 1);
+		  printss(entry.file_name);
+		  printss(file);
+		  
+		  /*if (directorySearch("HDISK", (((fat_extBS_32_t*)bootsect.extended_section)->root_cluster), &entry, NULL) != 0)
+			{printss ("issue!\n"); break;}
+			
+		  printss(entry.file_name);
+		printhex(entry.attributes, 2);
+		printss("\n");
+		printhex(entry.creation_time_tenths, 2);
+		printss("\n");
+		printhex( entry.creation_time,4);
+		printss("\n");
+		printhex(entry.creation_date,4);
+		printss("\n");
+		printhex(entry.last_accessed,4);
+		printss("\n");
+		printhex(entry.high_bits,4);
+		printss("\n");
+		printhex(entry.last_modification_time,4);
+		printss("\n");
+		printhex(entry.last_modification_date,4);
+		printss("\n");
+		printhex(entry.low_bits,4);
+		printss("\n");
+		printhex( entry.file_size,8);
+		printss("\n");
+	
+		printhex(GET_CLUSTER_FROM_ENTRY(entry), 8);
+		printss("\n");
+		printhex((((fat_extBS_32_t*)bootsect.extended_section)->root_cluster), 8);*/
 	  }
 
       else if ( buf == 'c' ) {

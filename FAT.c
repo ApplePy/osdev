@@ -904,7 +904,7 @@ int getFile(const char* filePath, char** fileContents, directory_entry_t* fileMe
 		if (readInOffset < 1 || (readInOffset * (unsigned short)bootsect.bytes_per_sector * (unsigned short)bootsect.sectors_per_cluster) + file_info.file_size > 262144) //prevent offsets that extend into FATRead's working range or outside the allocated BIOS int13h space
 			return -3; //you cannot have an offset below 1, nor can you read in more than 256kB
 
-		unsigned int cluster = GET_CLUSTER_FROM_ENTRY(file_info); //initialize file read-in with first cluster of file
+		int cluster = GET_CLUSTER_FROM_ENTRY(file_info); //initialize file read-in with first cluster of file
 		unsigned int clusterReadCount = 0;
 		while (cluster < END_CLUSTER_32)
 		{
@@ -916,7 +916,7 @@ int getFile(const char* filePath, char** fileContents, directory_entry_t* fileMe
 				printss("Function getFile: the cluster chain is corrupted with a bad cluster. Aborting...\n");
 				return -1;
 			}
-			else if (cluster == -1) //THIS WILL *NOT* WORK!!!! SIGN PROBLEM
+			else if (cluster == -1 )
 			{
 				printss("Function getFile: an error occurred in FATRead. Aborting...\n");
 				return -1;
@@ -954,36 +954,58 @@ int putFile(const char* filePath, char** fileContents, directory_entry_t* fileMe
 
 	//starting at 3 to skip the "C:\" bit
 	unsigned int iterator = 3;
-	for (iterator = 3; filePath[iterator - 1] != '\0'; iterator++)
+	if (strcmp(filePath, "C:\\") == 0)
 	{
-		if (filePath[iterator] == '\\' || filePath[iterator] == '\0')
+		if (fat_type == 32)
 		{
-			//clean out fileNamePart before copy
-			if (memset(fileNamePart, '\0', 256) != fileNamePart)
-			{
-				printss("Function putFile: Not sure what values memset returns. Continuing execution...\n");
-			}
-			//hacked-together strcpy derivative...
-			if (memcpy(fileNamePart, filePath + start, iterator - start) != fileNamePart)
-			{
-				printss("Function putFile: Not sure what values memcpy returns. Continuing execution...\n");
-			}
-
-			int retVal = directorySearch(fileNamePart, active_cluster, &file_info, NULL); //go looking for a directory in the specified cluster with the specified name
-
-			if (retVal == -2) //no directory matching found
-				return -2;
-			else if (retVal == -1) //error occured
-			{
-				printss("Function putFile: An error occurred in directorySearch. Aborting...\n");
-				return retVal;
-			}
-
-			start = iterator + 1;
-			active_cluster = GET_CLUSTER_FROM_ENTRY(file_info); //shift the high bits into their appropriate spots, and OR with low_bits (could also add, I think) in prep for next search
+			active_cluster = ((fat_extBS_32_t*)bootsect.extended_section)->root_cluster;
+			file_info.attributes = FILE_DIRECTORY | FILE_VOLUME_ID;
+			file_info.file_size = 0;
+			file_info.high_bits = GET_ENTRY_HIGH_BITS(active_cluster);
+			file_info.low_bits = GET_ENTRY_LOW_BITS(active_cluster);
+		}
+		else
+		{
+			printss("Function putFile: FAT16 and FAT12 are not supported!\n");
+			return -1;
 		}
 	}
+	else
+	{
+		for (iterator = 3; filePath[iterator - 1] != '\0'; iterator++)
+		{
+			if (filePath[iterator] == '\\' || filePath[iterator] == '\0')
+			{
+				//clean out fileNamePart before copy
+				if (memset(fileNamePart, '\0', 256) != fileNamePart)
+				{
+					printss("Function putFile: Not sure what values memset returns. Continuing execution...\n");
+				}
+				//hacked-together strcpy derivative...
+				if (memcpy(fileNamePart, filePath + start, iterator - start) != fileNamePart)
+				{
+					printss("Function putFile: Not sure what values memcpy returns. Continuing execution...\n");
+				}
 
+				int retVal = directorySearch(fileNamePart, active_cluster, &file_info, NULL); //go looking for a directory in the specified cluster with the specified name
+
+				if (retVal == -2) //no directory matching found
+				{
+					printss("Function putFile: No matching directory found. Aborting...\n");
+					return -2;
+				}
+				else if (retVal == -1) //error occured
+				{
+					printss("Function putFile: An error occurred in directorySearch. Aborting...\n");
+					return retVal;
+				}
+
+				start = iterator + 1;
+				active_cluster = GET_CLUSTER_FROM_ENTRY(file_info); //shift the high bits into their appropriate spots, and OR with low_bits (could also add, I think) in prep for next search
+			}
+		}
+	}
+	
 	//directory to receive the file is now found, and its cluster is stored in active_cluster. Search the directory to ensure the specified file name is not already in use
 	int retVal = directorySearch(fileMeta->file_name, active_cluster, NULL, NULL);
 	if (retVal == -1)
@@ -996,9 +1018,17 @@ int putFile(const char* filePath, char** fileContents, directory_entry_t* fileMe
 		printss("Function putFile: a file matching the name given already exists. Aborting...\n");
 		return -3;
 	}
+	
+	printss("retVal: ");
+	printhex (retVal, 8);
+	printss("\nfile_info.attributes: ");
+	printhex(file_info.attributes, 2);
+	printss("\n");
 
 	if ((file_info.attributes & FILE_DIRECTORY) == FILE_DIRECTORY) //if final directory listing found is a directory
 	{
+	printss(fileMeta->file_name);
+	
 		if (directoryAdd(active_cluster, fileMeta) != 0)
 		{
 			printss("Function putFile: directoryAdd encountered an error. Aborting...\n");
@@ -1007,7 +1037,7 @@ int putFile(const char* filePath, char** fileContents, directory_entry_t* fileMe
 
 		//now filling file_info with the information of the file directory entry
 		retVal = directorySearch(fileMeta->file_name, active_cluster, &file_info, NULL);
-		if (retVal == -2)
+		if (retVal == -2)                                                                                                                                                                                                      
 		{
 			printss("Function putFile: directoryAdd did not properly write the new file's entry to disk. Aborting...\n");
 			return -2;
@@ -1019,6 +1049,7 @@ int putFile(const char* filePath, char** fileContents, directory_entry_t* fileMe
 		}
 
 		active_cluster = GET_CLUSTER_FROM_ENTRY(file_info);
+		printhex (active_cluster, 8);
 		unsigned int dataLeftToWrite = file_info.file_size;
 		while (dataLeftToWrite > 0)
 		{
@@ -1057,11 +1088,15 @@ int putFile(const char* filePath, char** fileContents, directory_entry_t* fileMe
 			}
 			active_cluster = new_cluster;
 		}
-
+		
+		printss ("Function putFile: Success!\n");
 		return 0; //file successfully written
 	}
 	else
+	{
+		printss ("Function putFile: Invalid path!\n");
 		return -2; //invalid path!
+	}
 }
 
 //clock hasn't been implemented yet
@@ -1303,7 +1338,7 @@ rmdir()
 delFile()
 editFile()
 directoryEdit() (also can delete)
-directoryList()
+directoryList() done!
 CurrentTime()
 CurrentDate()
 CurrentTimeTenths()*/
