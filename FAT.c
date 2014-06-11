@@ -675,7 +675,9 @@ int directoryList(const unsigned int cluster, unsigned char attributesToAdd, sho
 		}
 		else
 		{
-			printsss(file_metadata->file_name, 11);
+			char conversion [13];
+			convertFromFATFormat(file_metadata->file_name, conversion);
+			printss(conversion);
 			printss("\t");
 			if ((file_metadata->attributes & FILE_DIRECTORY) == FILE_DIRECTORY)
 			{
@@ -1162,6 +1164,65 @@ void convertToFATFormat(char* input)
 	}
 
 	strcpy(input, searchName); //copy results back to input
+}
+
+//Converts the file name stored in a FAT directory entry into a more human-sensible format
+void convertFromFATFormat(char* input, char* output)
+{
+
+	//If the entry passed in is one of the dot special entries, just return them unchanged.
+	if (input[0] == '.')
+	{
+		if (input[1] == '.')
+		{
+			strcpy (output, "..");
+			return;
+		}
+		
+		strcpy (output, ".");
+		return;
+	}
+
+	unsigned short counter = 0;
+	
+	//iterate through the 8 letter file name, adding a dot when the end is reached
+	for ( counter = 0; counter < 8; counter++)
+	{
+		if (input[counter] == 0x20)
+		{
+			output[counter] = '.';
+			break;
+		}
+		
+		output[counter] = input[counter];
+	}
+	
+	//if the entire 8 letters of the file name were used, tack a dot onto the end
+	if (counter == 8)
+	{
+		output[counter] = '.';
+	}
+
+	unsigned short counter2 = 8;
+	
+	//iterate through the three-letter extension, adding it on. (Note: if the input is a directory (which has no extension) it erases the dot put in previously)
+	for (counter2 = 8; counter2 < 11; counter2++)
+	{
+		++counter;
+		if (input[counter2] == 0x20 || input[counter2] == 0x20)
+		{
+			if (counter2 == 8) //there is no extension, the dot added earlier must be removed
+				--counter;
+				
+			output[counter] = '\0';
+			break;
+		}
+		output[counter] = input[counter2];		
+	}
+
+	++counter;
+	output[counter % 14] = '\0'; //ensures proper termination regardless of program operation previously
+	return;
 }
 
 #ifdef _MSC_VER

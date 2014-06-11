@@ -230,6 +230,7 @@ int getFile(const char* filePath, char** fileContents, directory_entry_t* fileMe
 int FATRead(unsigned int clusterNum);
 int clusterRead(unsigned int clusterNum, unsigned int clusterOffset);
 void convertToFATFormat(char* input);
+void convertFromFATFormat(char* input, char* output);
 unsigned char ChkSum(unsigned char *pFcbName);
 int UpdateBootSect(fat_BS_t newContents); //don't forget the backup bootsector!
 int UpdateFSInfo(FSInfo_t newInfo); //don't forget the backup FSInfo! (if one exists)

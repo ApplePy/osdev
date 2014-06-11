@@ -242,6 +242,11 @@ int main(void) {
 		  directoryList(((fat_extBS_32_t*)(bootsect.extended_section))->root_cluster, FILE_ARCHIVE, 1);
 		  printss("File printed thrice.\n");
 		  directoryList(((fat_extBS_32_t*)(bootsect.extended_section))->root_cluster, FILE_HIDDEN, 1);
+		  
+		  char testing[13];
+		  convertFromFATFormat(entry.file_name, testing );
+		  printss("\n");
+		  printss(testing);
 	  }
 
       else if ( buf == 'c' ) {
