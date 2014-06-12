@@ -223,10 +223,16 @@ int main(void) {
 		  
 		  char *file;
 		  directory_entry_t entry;
-		  //directorySearch("test.txt", ((fat_extBS_32_t*)bootsect.extended_section)->root_cluster, &entry, NULL);
+		  directory_entry_t testFile;
+		  
+		  strcpy(testFile.file_name, convertToFATFormat("testFile.txt")convertToFATFormat();
+		  testFile.attributes = FILE_ARCHIVE;
+		  testFile.file_size = strlen("testFile.txt");
+		  directoryAdd(((fat_extBS_32_t*)bootsect.extended_section)->root_cluster, &testFile);
+		  directorySearch("testFile.txt", ((fat_extBS_32_t*)bootsect.extended_section)->root_cluster, &entry, NULL);
 		  printss(entry.file_name);
 		  //printss(&entry., );
-		  char* test = "C:\\test.txt";
+		  /*!!!!!!!char* test = "C:\\test.txt";
 		  printhex(test,8);
 		  printss(test);
 		  printss("\nTest1 complete...\n\n\n\n");
@@ -247,6 +253,14 @@ int main(void) {
 		  convertFromFATFormat(entry.file_name, testing );
 		  printss("\n");
 		  printss(testing);
+		  
+		  strcpy(entry.file_name, "\nEMPTY\n\n");
+		  printss(entry.file_name);
+		  
+		  if (directorySearch("puttest.txt", ((fat_extBS_32_t*)bootsect.extended_section)->root_cluster, &entry, NULL) != 0)
+			printss("SearchError\n");
+		  
+		  printss(entry.file_name);!!!!!*/
 		  
 		  /*printss("\n");
 		  unsigned int new_cluster = allocateFreeFAT();
@@ -270,7 +284,7 @@ int main(void) {
 		  printss("\n");
 		  printhex(FATRead(new_cluster), 8);*/ //this commented-out block works
 		  
-		  char* inputest = "Testing putFile!";
+		  /*!!!!!char* inputest = "Testing putFile!";
 		  directory_entry_t new_entry;
 		  strcpy (new_entry.file_name, "putTest.txt");
 		  new_entry.attributes = FILE_ARCHIVE;
@@ -280,6 +294,14 @@ int main(void) {
 		  getFile("C:\\putTest.txt", &file, &entry, 1);
 		  printss(entry.file_name);
 		  printss(file);
+		  
+		  strcpy(entry.file_name, "\nEMPTY\n\n");
+		  printss(entry.file_name);
+		  
+		  if (directorySearch("puttest.txt", ((fat_extBS_32_t*)bootsect.extended_section)->root_cluster, &entry, NULL) != 0)
+			printss("SearchError\n");
+		  
+		  printss(entry.file_name);!!!!!!*/
 		  
 		  /*if (directorySearch("HDISK", (((fat_extBS_32_t*)bootsect.extended_section)->root_cluster), &entry, NULL) != 0)
 			{printss ("issue!\n"); break;}

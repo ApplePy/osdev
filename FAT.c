@@ -694,8 +694,8 @@ int directoryList(const unsigned int cluster, unsigned char attributesToAdd, sho
 }
 
 //receives the cluster to read for a directory and the requested file, and will iterate through the directory's clusters - returning the entry for the searched file/subfolder, or no file/subfolder
-//return value holds success or failure code, file holds directory entry if file is found (can be NULL)
-//entryOffset points to where the directory entry was found in sizeof(directory_entry_t) (can be NULL)
+//return value holds success or failure code, file holds directory entry if file is found
+//entryOffset points to where the directory entry was found in sizeof(directory_entry_t) starting from zero (can be NULL)
 //returns: -1 is a general error, -2 is a "not found" error
 int directorySearch(const char* filepart, const unsigned int cluster, directory_entry_t* file, unsigned int* entryOffset)
 {
@@ -713,23 +713,28 @@ int directorySearch(const char* filepart, const unsigned int cluster, directory_
 	unsigned int meta_pointer_iterator_count = 0; //holds how many directories have been looked at
 
 	//iterate through clusters, checking for a file name match
+	printss("starting test...\n");
 	while (1)
 	{
+		printsss(file_metadata->file_name, 13);
+				printss("\t");
+				printhex(meta_pointer_iterator_count, 8);
+				printss("\n");
 		if (file_metadata->file_name[0] == ENTRY_END) //end of directory entries; searching can stop now
 			break;
-		else if (file_metadata->file_name[0] == ENTRY_FREE || strncmp((char*)file_metadata->file_name, searchName, 11) != 0) //if the file doesn't match 
+		else if (strncmp((char*)file_metadata->file_name, searchName, 11) != 0) //if the file doesn't match 
 		{
-			if (meta_pointer_iterator_count < bootsect.bytes_per_sector * bootsect.sectors_per_cluster / sizeof(directory_entry_t) - 1) //if the pointer hasn't iterated outside of what that cluster can hold
+			if (meta_pointer_iterator_count < bootsect.bytes_per_sector * bootsect.sectors_per_cluster / sizeof(directory_entry_t) - 1) //if the pointer hasn't iterated outside of what that cluster can hold (the 1 is to prevent strncmp from the line above from reading past the cluster boundary)
 			{
 				file_metadata++;
 				meta_pointer_iterator_count++;
 			}
 			else
 			{
-				unsigned int next_cluster = FATRead(cluster);
-
+				int next_cluster = FATRead(cluster);
+				
 				if ((next_cluster >= END_CLUSTER_32 && fat_type == 32) || (next_cluster >= END_CLUSTER_16 && fat_type == 16) || (next_cluster >= END_CLUSTER_12 && fat_type == 12))
-					break;
+					break; // no more clusters to search
 				else if (next_cluster < 0)
 				{
 					printss("Function directorySearch: FATRead encountered an error. Aborting...\n");
@@ -739,12 +744,13 @@ int directorySearch(const char* filepart, const unsigned int cluster, directory_
 					return directorySearch(filepart, next_cluster, file, entryOffset); //search next cluster
 			}
 		}
-		else
+		else //found a file match!
 		{
 			if (file != NULL)
 			{
 				if (memcpy(file, file_metadata, sizeof(directory_entry_t)) != file); //copy found data to file
 				{
+					NULL;
 					printss("Function directorySearch: Not sure what values memcpy returns. Continuing execution...\n");
 				}
 			}
@@ -763,7 +769,7 @@ int directorySearch(const char* filepart, const unsigned int cluster, directory_
 
 //pass in the cluster to write the directory to and the directory struct to write.
 //struct should only have a file name, attributes, and size. the rest will be filled in automatically
-int directoryAdd(const unsigned int cluster, directory_entry_t* file)
+int directoryAdd(const unsigned int cluster, directory_entry_t* file_to_add)
 {
 	//read cluster of the directory/subdirectory
 	if (clusterRead(cluster, 0) != 0)
@@ -776,9 +782,13 @@ int directoryAdd(const unsigned int cluster, directory_entry_t* file)
 
 	while (1)
 	{
-		if (file_metadata->file_name[0] != (char)ENTRY_FREE && file_metadata->file_name[0] != (char)ENTRY_END) //if the file directory slot isn't free
+		if (file_metadata->file_name[0] != ENTRY_FREE && file_metadata->file_name[0] != ENTRY_END) //if the file directory slot isn't free
 		{
-			if (meta_pointer_iterator_count < bootsect.bytes_per_sector * bootsect.sectors_per_cluster / sizeof(directory_entry_t) - 1) //if the pointer hasn't iterated outside of what that cluster can hold
+			printsss(file_metadata->file_name, 13);
+				printss("\t");
+				printhex(meta_pointer_iterator_count, 8);
+				printss("\n");
+			if (meta_pointer_iterator_count < bootsect.bytes_per_sector * bootsect.sectors_per_cluster / sizeof(directory_entry_t) - 1) //if the pointer hasn't iterated outside of what that cluster can hold (the 1 is to prevent strncmp from the line above from reading past the cluster boundary)
 			{
 				file_metadata++;
 				meta_pointer_iterator_count++;
@@ -786,6 +796,8 @@ int directoryAdd(const unsigned int cluster, directory_entry_t* file)
 			else
 			{
 				unsigned int next_cluster = FATRead(cluster);
+				printhex(next_cluster, 8);
+				printss("\n");
 
 				if ((next_cluster >= END_CLUSTER_32 && fat_type == 32) || (next_cluster >= END_CLUSTER_16 && fat_type == 16) || (next_cluster >= END_CLUSTER_12 && fat_type == 12)) //no free spaces left in the directory cluster, and no more clusters to search. Allocate a new one.
 				{
@@ -794,51 +806,71 @@ int directoryAdd(const unsigned int cluster, directory_entry_t* file)
 					if ((next_cluster == BAD_CLUSTER_32 && fat_type == 32) || (next_cluster == BAD_CLUSTER_16 && fat_type == 16) || (next_cluster == BAD_CLUSTER_12 && fat_type == 12)) //allocation unsuccessful
 					{
 						printss("Function directoryAdd: allocation of new cluster failed. Aborting...\n");
-						break;
+						return -1;
 					}
 
 					//write the new cluster number to the previous cluster's FAT
 					if (FATWrite(cluster, next_cluster) != 0)
 					{
 						printss("Function directoryAdd: extension of the cluster chain with new cluster failed. Aborting...\n");
-						break;
+						return -1;
 					}
 				}
 
-				return directoryAdd(next_cluster, file);//search next cluster
+				printss("Descending...\n");
+				return directoryAdd(next_cluster, file_to_add);//search next cluster
 			}
 		}
 		else
 		{
-			convertToFATFormat((char*)file->file_name); //convert name to FAT format before saving
-			file->creation_date = CurrentDate();
-			file->creation_time = CurrentTime();
-			file->creation_time_tenths = CurrentTimeTenths();
-			file->last_accessed = file->creation_date;
-			file->last_modification_date = file->creation_date;
-			file->last_modification_time = file->creation_time;
+			printss("Found a spot!\n");
+			//convertToFATFormat((char*)file_to_add->file_name); //convert name to FAT format before saving
+			//DO NOT CONVERT FILE NAME TO FAT FORMAT - IT SHOULD ALREADY BE IN SAID FORMAT!
+			unsigned short dot_checker = 0;
+			for (dot_checker = 0; dot_checker < 11; dot_checker++)
+			{
+				if (file_to_add->file_name[dot_checker] == '.')
+				{
+					printss("Function directoryAdd: Invalid file name!");
+					return -1;
+				}
+			}
+			uppercase(file_to_add->file_name);
+			file_to_add->creation_date = CurrentDate();
+			file_to_add->creation_time = CurrentTime();
+			file_to_add->creation_time_tenths = CurrentTimeTenths();
+			file_to_add->last_accessed = file_to_add->creation_date;
+			file_to_add->last_modification_date = file_to_add->creation_date;
+			file_to_add->last_modification_time = file_to_add->creation_time;
 
 			//allocate new cluster for new file
 			unsigned int new_cluster = allocateFreeFAT();
+			
+			printhex(new_cluster, 8);
+			printss("\n");
 
 			if ((new_cluster == BAD_CLUSTER_32 && fat_type == 32) || (new_cluster == BAD_CLUSTER_16 && fat_type ==16) || (new_cluster == BAD_CLUSTER_12 && fat_type == 12)) //allocation unsuccessful
 			{
 				printss("Function directoryAdd: allocation of new cluster failed. Aborting...\n");
-				break;
+				return -1;
 			}
 
-			file->low_bits = GET_ENTRY_LOW_BITS(new_cluster);
-			file->high_bits = GET_ENTRY_HIGH_BITS(new_cluster);
+			file_to_add->low_bits = GET_ENTRY_LOW_BITS(new_cluster);
+			file_to_add->high_bits = GET_ENTRY_HIGH_BITS(new_cluster);
+			
+			printss("File Metadata location: ");
+			printhex(file_metadata, 8);
+			printss("\n");
 
 			//copy data to empty location
-			if (memcpy(file_metadata, file, sizeof(directory_entry_t)) != file_metadata)
+			if (memcpy(file_metadata, file_to_add, sizeof(directory_entry_t)) != file_metadata)
 			{
-				printss("Function directorySearch: Not sure what values memcpy returns. Continuing execution...\n");
+				printss("Function directoryAdd: Not sure what values memcpy returns. Continuing execution...\n");
 			}
-			if (clusterWrite(DISK_READ_LOCATION, bootsect.bytes_per_sector * bootsect.sectors_per_cluster, 0, cluster) != 0)
+			if (clusterWrite(DISK_WRITE_LOCATION, bootsect.bytes_per_sector * bootsect.sectors_per_cluster, 0, cluster) != 0)
 			{
-				printss("Function clusterWrite: Writing new directory entry failed. Aborting...\n");
-				break;
+				printss("Function directoryAdd: Writing new directory entry failed. Aborting...\n");
+				return -1;
 			}
 			return 0;
 		}
@@ -1019,10 +1051,10 @@ int putFile(const char* filePath, char** fileContents, directory_entry_t* fileMe
 		return -3;
 	}
 	
-	printss("retVal: ");
-	printhex (retVal, 8);
-	printss("\nfile_info.attributes: ");
-	printhex(file_info.attributes, 2);
+	printss("#1\nActive Cluster: ");
+	printhex (active_cluster, 8);
+	printss("\nfile_info.file_name: ");
+	printss(file_info.file_name);
 	printss("\n");
 
 	if ((file_info.attributes & FILE_DIRECTORY) == FILE_DIRECTORY) //if final directory listing found is a directory
@@ -1035,6 +1067,12 @@ int putFile(const char* filePath, char** fileContents, directory_entry_t* fileMe
 			return -1;
 		}
 
+		
+		printss("#2\nActive Cluster: ");
+		printhex (active_cluster, 8);
+		printss("\nfile_info.file_name: ");
+		printss(file_info.file_name);
+		printss("\n");
 		//now filling file_info with the information of the file directory entry
 		retVal = directorySearch(fileMeta->file_name, active_cluster, &file_info, NULL);
 		if (retVal == -2)                                                                                                                                                                                                      
@@ -1050,9 +1088,11 @@ int putFile(const char* filePath, char** fileContents, directory_entry_t* fileMe
 
 		active_cluster = GET_CLUSTER_FROM_ENTRY(file_info);
 		printhex (active_cluster, 8);
-		unsigned int dataLeftToWrite = file_info.file_size;
+		unsigned int dataLeftToWrite = fileMeta->file_size;
 		while (dataLeftToWrite > 0)
 		{
+			printhex(dataLeftToWrite, 8);
+			printss("\n");
 			unsigned int dataWrite = 0;
 			if (dataLeftToWrite >= bootsect.bytes_per_sector * bootsect.sectors_per_cluster)
 				dataWrite = bootsect.bytes_per_sector * bootsect.sectors_per_cluster;
@@ -1060,7 +1100,7 @@ int putFile(const char* filePath, char** fileContents, directory_entry_t* fileMe
 				dataWrite = dataLeftToWrite;
 
 			//Always offset by at least one, so any file operations happening exactly at DISK_READ_LOCATION (e.g. FAT Table lookups) don't overwrite the data (this is essentially backwards compatibility with previously written code)
-			if (clusterWrite(*fileContents + (file_info.file_size - dataLeftToWrite), dataWrite, 1, active_cluster) == 0)
+			if (clusterWrite(*fileContents + (fileMeta->file_size - dataLeftToWrite), dataWrite, 1, active_cluster) == 0)
 			{
 				printss("Function putFile: clusterWrite encountered an error. Aborting...\n");
 				return -1;
@@ -1140,8 +1180,7 @@ unsigned char ChkSum(unsigned char *pFcbName)
 }
 /* ChkSum function courtesy of http://staff.washington.edu/dittrich/misc/fatgen103.pdf */
 
-//Notes: Does not consider making short forms of long names, nor support multiple periods in a name.
-void convertToFATFormat(char* input)
+char* uppercase(char* input)
 {
 	unsigned int counter = 0;
 	unsigned int inputLength = strlen(input);
@@ -1152,6 +1191,16 @@ void convertToFATFormat(char* input)
 			input[counter] -= 32;
 		counter++;
 	}
+	return input;
+}
+
+
+//Notes: Does not consider making short forms of long names, nor support multiple periods in a name.
+char* convertToFATFormat(char* input)
+{
+	unsigned int counter = 0;
+
+	uppercase(input);
 
 	char searchName[13] = { '\0' };
 	unsigned short dotPos = 0;
@@ -1199,6 +1248,8 @@ void convertToFATFormat(char* input)
 	}
 
 	strcpy(input, searchName); //copy results back to input
+
+	return input;
 }
 
 //Converts the file name stored in a FAT directory entry into a more human-sensible format
@@ -1337,7 +1388,8 @@ allocateFreeFAT() done! //a wrapper for FATRead() that iterates through FAT tabl
 rmdir()
 delFile()
 editFile()
-directoryEdit() (also can delete)
+directoryEdit()
+directoryDel()
 directoryList() done!
 CurrentTime()
 CurrentDate()

@@ -43,10 +43,10 @@
 #define ENTRY_JAPAN 0x05
 #define LAST_LONG_ENTRY 0x40
 
-#define GET_CLUSTER_FROM_ENTRY(x) x.low_bits | (x.high_bits << (fat_type / 2))
-#define GET_ENTRY_LOW_BITS(x) x & (2^(fat_type / 2) - 1)
-#define GET_ENTRY_HIGH_BITS(x) x >> (fat_type / 2)
-#define CONCAT_ENTRY_HL_BITS(high, low) (high << (fat_type / 2)) | low
+#define GET_CLUSTER_FROM_ENTRY(x) (x.low_bits | (x.high_bits << (fat_type / 2)))
+#define GET_ENTRY_LOW_BITS(x) (x & (2^(fat_type / 2) - 1))
+#define GET_ENTRY_HIGH_BITS(x) (x >> (fat_type / 2))
+#define CONCAT_ENTRY_HL_BITS(high, low) ((high << (fat_type / 2)) | low)
 
 #ifndef NULL
 #define NULL 0
@@ -230,7 +230,8 @@ int FATWrite(unsigned int clusterNum, unsigned int clusterVal);
 int getFile(const char* filePath, char** fileContents, directory_entry_t* fileMeta, unsigned int readInOffset);
 int putFile(const char* filePath, char** fileContents, directory_entry_t* fileMeta);
 int clusterRead(unsigned int clusterNum, unsigned int clusterOffset);
-void convertToFATFormat(char* input);
+int clusterWrite(void* contentsToWrite, unsigned int contentSize, unsigned int contentBuffOffset, unsigned int clusterNum);
+char* convertToFATFormat(char* input);
 void convertFromFATFormat(char* input, char* output);
 unsigned char ChkSum(unsigned char *pFcbName);
 int UpdateBootSect(fat_BS_t newContents); //don't forget the backup bootsector!
