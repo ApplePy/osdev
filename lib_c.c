@@ -198,6 +198,15 @@ char lowercase( char c ) {
 
 }
 
+char uppercase( char c ) {
+
+   if ( ( c >= 'a' ) && ( c <= 'z' ) )
+      c -= 'a' - 'A';
+
+   return c;
+
+}
+
 // print a number in hexadecimal format
 void printhex( unsigned long num, int digits ) {
 
@@ -256,4 +265,32 @@ void putcc( char c ) {
    
    outb( TTY, c );
 
+}
+
+char* uppercase_str(char* input)
+{
+	unsigned int counter = 0;
+	unsigned int inputLength = strlen(input);
+
+	while (counter < inputLength) //iterate through input, converting the characters to uppercase
+	{
+		if ((short)input[counter] >= 97 && (short)input[counter] <= 122)
+			input[counter] -= 32;
+		counter++;
+	}
+	return input;
+}
+
+char* lowercase_str(char* input)
+{
+	unsigned int counter = 0;
+	unsigned int inputLength = strlen(input);
+
+	while (counter < inputLength) //iterate through input, converting the characters to uppercase
+	{
+		if ((short)input[counter] >= 65 && (short)input[counter] <= 90)
+			input[counter] += 32;
+		counter++;
+	}
+	return input;
 }

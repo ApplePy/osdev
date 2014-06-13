@@ -223,25 +223,27 @@ int main(void) {
 		  
 		  char *file;
 		  directory_entry_t entry;
-		  directory_entry_t testFile;
+		  //directory_entry_t testFile;
 		  
-		  strcpy(testFile.file_name, convertToFATFormat("testFile.txt")convertToFATFormat();
+		  /*strcpy(testFile.file_name, convertToFATFormat("testFile.txt")convertToFATFormat();
 		  testFile.attributes = FILE_ARCHIVE;
 		  testFile.file_size = strlen("testFile.txt");
 		  directoryAdd(((fat_extBS_32_t*)bootsect.extended_section)->root_cluster, &testFile);
 		  directorySearch("testFile.txt", ((fat_extBS_32_t*)bootsect.extended_section)->root_cluster, &entry, NULL);
-		  printss(entry.file_name);
+		  printss(entry.file_name);*/
+		  
+		  directoryList(((fat_extBS_32_t*)(bootsect.extended_section))->root_cluster, NULL, NULL);
+		  
 		  //printss(&entry., );
-		  /*!!!!!!!char* test = "C:\\test.txt";
-		  printhex(test,8);
+		  char* test = "C:\\test.txt";
 		  printss(test);
 		  printss("\nTest1 complete...\n\n\n\n");
 		  //getFile( 0x12345678, 0x34343434, 0x56565656, 0xabababab);
 		  getFile( test, &file, &entry, 1);
-		  printss(entry.file_name);
+		  printss((char *)entry.file_name);
 		  printss(file);
 		  
-		  printss("File printed once.\n");
+		  /*printss("File printed once.\n");
 		  
 		  directoryList(((fat_extBS_32_t*)(bootsect.extended_section))->root_cluster, NULL, NULL);
 		  printss("File printed twice.\n");

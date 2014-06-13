@@ -44,7 +44,7 @@
 #define LAST_LONG_ENTRY 0x40
 
 #define GET_CLUSTER_FROM_ENTRY(x) (x.low_bits | (x.high_bits << (fat_type / 2)))
-#define GET_ENTRY_LOW_BITS(x) (x & (2^(fat_type / 2) - 1))
+#define GET_ENTRY_LOW_BITS(x) (x & ((2^(fat_type / 2)) - 1))
 #define GET_ENTRY_HIGH_BITS(x) (x >> (fat_type / 2))
 #define CONCAT_ENTRY_HL_BITS(high, low) ((high << (fat_type / 2)) | low)
 
