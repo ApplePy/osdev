@@ -286,9 +286,9 @@ int main(void) {
 		  printss("\n");
 		  printhex(FATRead(new_cluster), 8);*/ //this commented-out block works
 		  
-		  /*!!!!!char* inputest = "Testing putFile!";
+		  char* inputest = "Testing putFile!";
 		  directory_entry_t new_entry;
-		  strcpy (new_entry.file_name, "putTest.txt");
+		  strcpy (new_entry.file_name, convertToFATFormat("putTest.txt"));
 		  new_entry.attributes = FILE_ARCHIVE;
 		  new_entry.file_size = 17; //strlen(inputest);
 		  
@@ -303,7 +303,7 @@ int main(void) {
 		  if (directorySearch("puttest.txt", ((fat_extBS_32_t*)bootsect.extended_section)->root_cluster, &entry, NULL) != 0)
 			printss("SearchError\n");
 		  
-		  printss(entry.file_name);!!!!!!*/
+		  printss(entry.file_name);
 		  
 		  /*if (directorySearch("HDISK", (((fat_extBS_32_t*)bootsect.extended_section)->root_cluster), &entry, NULL) != 0)
 			{printss ("issue!\n"); break;}

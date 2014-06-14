@@ -52,6 +52,18 @@
 #define NULL 0
 #endif
 
+#ifndef BOOL
+#define BOOL short
+#endif
+
+#ifndef TRUE
+#define TRUE 1
+#endif
+
+#ifndef FALSE
+#define FALSE 0
+#endif
+
 //Declarations to use when testing with a virtual disk
 #ifdef _MSC_VER
 #define DISK_READ_LOCATION testing_disk

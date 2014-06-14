@@ -802,7 +802,7 @@ int directoryAdd(const unsigned int cluster, directory_entry_t* file_to_add)
 					return -1;
 				}
 			}
-			uppercase_str((char *)file_to_add->file_name);
+			//uppercase_str((char *)file_to_add->file_name);
 			file_to_add->creation_date = CurrentDate();
 			file_to_add->creation_time = CurrentTime();
 			file_to_add->creation_time_tenths = CurrentTimeTenths();
@@ -1191,6 +1191,33 @@ char* convertToFATFormat(char* input)
 	strcpy(input, searchName); //copy results back to input
 
 	return input;
+}
+
+BOOL testIfFATFormat(char * input)
+{
+
+	//TO-DO: Add these values to the check too:
+	/*Values less than 0x20 except for the special case of 0x05 in DIR_Name[0] described above.
+		• 0x22, 0x2A, 0x2B, 0x2C, 0x2E, 0x2F, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x5B, 0x5C, 0x5D,
+		and 0x7C.*/
+	unsigned short iterator;
+	for (iterator = 0; iterator < 11; iterator++)
+	{
+		if (input[iterator] < 'A' || input[iterator] > 'Z')
+			return FALSE;
+	}
+
+	if (input[11] == ' ')
+	{
+		if (input[12] != '\0')
+			return FALSE;
+		else
+			return TRUE;
+	}
+	else if (input[11] == '\0')
+		return TRUE;
+	else
+		return FALSE;
 }
 
 //Converts the file name stored in a FAT directory entry into a more human-sensible format
