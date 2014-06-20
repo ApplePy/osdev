@@ -35,6 +35,12 @@ extern const unsigned char ISR_Template_CFunc_Addr;
 extern const unsigned char ISR_Template_CFunc_End;
 extern const unsigned char ISR_Template_End;
 
+
+//void putstring(char * str);
+//void _printInt(int val, int base);
+//void _printf(char * fmt, ...);
+
+
 // 0x40 is bad!! Re-code to handle changing size of ISR stub code
 // based on ( ISR_template_end - ISR_template_start )
 #define ISR_STUB_LENGTH 0x40
@@ -88,7 +94,7 @@ int gethex( unsigned long *num, int digits, int echo ) {
 
 void idt_install() {
    
-/*
+
 printss( "\nidt_install()" );
 
 printss( "\n&irq_handler = " );
@@ -108,7 +114,7 @@ printhex( sizeof( idt ), 8 );
 
 printss( "\n&idt = " );
 printhex( (unsigned long) &idt, 8 );
-*/
+
    IDTR idtr;
    
    idtr.limit = sizeof( idt ) - 1;
@@ -198,6 +204,15 @@ char lowercase( char c ) {
 
 }
 
+char uppercase( char c ) {
+
+   if ( ( c >= 'a' ) && ( c <= 'z' ) )
+      c -= 'a' - 'A';
+
+   return c;
+
+}
+
 // print a number in hexadecimal format
 void printhex( unsigned long num, int digits ) {
 
@@ -255,5 +270,113 @@ void putcc( char c ) {
       ;
    
    outb( TTY, c );
+}
+// send a string
+void putstring(char * str)
+{
+	while (*str != '\0')
+	{
+		putcc(*str);
+		str++;
+	}
+}
 
+void _printInt(int val, int base)
+{
+	char buff[32];
+	char * ptr;
+	int n;
+	ptr = &buff[sizeof(buff)-1];
+	*ptr = '\0';
+
+	for(; val != 0; val /= base)
+	{
+		ptr--;
+		n = val%base;
+		if (n < 10)
+		{
+			*ptr = n + '0';
+		}
+
+		else
+		{
+			*ptr = n - 10 + 'A';
+		}
+	}
+
+	putstring(ptr);
+}
+
+void _printf(char * fmt, ...)
+{
+	int i = 0;
+	char *s, *p = (char *)fmt;
+	unsigned long *argptr = (unsigned long *)&fmt;
+	argptr++;
+	while (*p != '\0') // is not NULL
+	{
+		if (*p != '%')
+		{
+			putcc(*p);
+			p++;
+			continue;
+		}
+
+		else if (*p == '%')
+		{
+			switch (*(p+1))
+			{
+			case 'd':
+				i = *(int *)argptr;
+				_printInt(i, 10);
+				argptr++;
+				p+=2;
+				break;
+			case 's':
+				s = (char *)*argptr;
+				putstring(s);
+				argptr++;
+				p+=2;
+				break;
+			case 'x': 
+				i = *(int *)argptr;
+				_printInt(i, 16);
+				argptr++;
+				p+=2;
+				break;
+			default:
+				putcc(*p);
+				p++;
+				break;
+			}
+		}
+	}
+}
+
+char* uppercase_str(char* input)
+{
+	unsigned int counter = 0;
+	unsigned int inputLength = strlen(input);
+
+	while (counter < inputLength) //iterate through input, converting the characters to uppercase
+	{
+		if ((short)input[counter] >= 97 && (short)input[counter] <= 122)
+			input[counter] -= 32;
+		counter++;
+	}
+	return input;
+}
+
+char* lowercase_str(char* input)
+{
+	unsigned int counter = 0;
+	unsigned int inputLength = strlen(input);
+
+	while (counter < inputLength) //iterate through input, converting the characters to uppercase
+	{
+		if ((short)input[counter] >= 65 && (short)input[counter] <= 90)
+			input[counter] += 32;
+		counter++;
+	}
+	return input;
 }

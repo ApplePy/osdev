@@ -4,13 +4,23 @@
 #include "lib_c.h"
 #include "string.h"
 
+#ifndef DISK_READ_LOCATION
+#define DISK_READ_LOCATION 0x40000
+#endif
+
+#ifndef DISK_WRITE_LOCATION
+#define DISK_WRITE_LOCATION 0x40000
+#endif
+
 // Included in stage2.asm
 void real_mode_sw_int_call();
 
 // Included in this file
 int enableA20();
 int int13h_read(  unsigned long sector_offset, unsigned char num_blocks );
+int int13h_read_o(unsigned long sector_offset, unsigned char num_blocks, unsigned long readLocationOffset);
 int int13h_write( unsigned long sector_offset, unsigned char num_blocks );
+int13h_write_o(unsigned long sector_offset, unsigned char num_blocks, unsigned long writeLocationOffset);
 
 // For use with real_mode_sw_int_call function; holds register parameters
 // and interrupt type. It is also used to return any register values. All
@@ -83,8 +93,12 @@ extern unsigned char bios_disk_number;
 extern Real_Mode_SW_Int real_mode_linear_sw_int;
 extern Disk_Address_Packet disk_address_packet;
 
-int main(void) {
 
+int main(void) {
+	part_start_lba = 33543720;
+	part_length = 2*8385930;
+
+	
    char buf, *addr, checksum;
    int i, count, lba_sector, num_blocks;
  
@@ -92,7 +106,8 @@ int main(void) {
    printss( "Copyright (C) 2001, 2013\n" );
    printss( "Enter \"?\" for help\n" );
    printss( "Boot ROM date = " );
-   printsss( ( char * ) 0xFFFF5, 8 );
+   printsss(( char * ) 0xFFFF5, 8);
+   _printf("\n_printf was successful on try %d", 1);
    printss( "\nEIP = " );
    printhex( get_eip(), 8 );
    enableA20();
@@ -103,6 +118,22 @@ int main(void) {
    printhex( part_length, 8 );
    printss( "\nbios_disk_number=" );
    printhex( bios_disk_number, 2 );
+
+ //  _printf(" WELCOME\n 99%%s %d%\n %x \n bye..", " Thankyou", 100, 500); ///////////////////
+ //  _printf("\n\n\n I was here!!! \n\n\n");
+ //  _printf("%d", 0x200);
+
+
+   _printf("\n%s %d %d Hello world %x ", "400", 52, 20, 200);
+   _printf("\n THIS IS STRING DEMO: %s", "Hi Yan!" );
+   
+   real_mode_linear_sw_int.ax = 0x4F02;
+   real_mode_linear_sw_int.bx = 0x011B; // Change to select VBE video mode, 0x011B is 1280x1024 24/32-bit colour
+   real_mode_linear_sw_int.di = 0x0000;
+   real_mode_linear_sw_int.opcode = 0xCD;
+   real_mode_linear_sw_int.operand = 0x10;
+   
+   real_mode_sw_int_call();
    
    while ( 1 ) {
 
@@ -116,7 +147,7 @@ int main(void) {
          reset();
 
       }
-      
+	  
       else if ( buf == 'c' ) {
       
          if ( gethex( ( void * ) &addr, 8, -1 ) != 0 )
@@ -216,7 +247,7 @@ int main(void) {
          outb( ( unsigned long ) addr, count );
       
       }
-      
+	  
       else if ( buf == 'm' ) {
       
          if ( gethex( ( void * ) &addr, 8, -1 ) != 0 )
@@ -273,7 +304,8 @@ int main(void) {
       }
 
    }
-
+   
+   
    return 0;
 
 }
@@ -397,67 +429,134 @@ int enableA20() {
    
 }
 
+
 // Read sector(s) from booted partition to 0x4000:0000
 // Returns 0 on success and non-zero on failure
-int int13h_read( unsigned long sector_offset, unsigned char num_blocks ) {
+int int13h_read_o(unsigned long sector_offset, unsigned char num_blocks, unsigned long readLocationOffset) {
+
+	// Bounds check; only read sectors on the booted partition
+	if (sector_offset + num_blocks > part_length)
+		return -1;
+
+	//Size check; only read blocks if the resulting size read will still be between 0x4000 and 0x8000
+	if (readLocationOffset + num_blocks * 512 > (0x8000 - 0x4000))
+		return -1;
+
+	// Sanity check; BIOS int13h can only read up to 0x7F blocks
+	if (num_blocks > 0x7F)
+		return -1;
+
+	sector_offset = sector_offset + part_start_lba;
    
-   // Bounds check; only read sectors on the booted partition
-   if ( sector_offset + num_blocks > part_length )
-      return -1;
+   //Implementing LBA28
+ 
+   //Send out LBA and read instructions to disk
+   outb(0x1F1, NULL);
+   outb(0x1F2, num_blocks);
+   outb(0x1F3, (unsigned char)sector_offset);
+   outb(0x1F4, (unsigned char)(sector_offset >> 8));
+   outb(0x1F5, (unsigned char)(sector_offset >> 16));
+   outb(0x1F6, 0xE0 | (0 << 4) | ((sector_offset >> 24) & 0x0F));
+   outb(0x1F7, 0x20);
    
-   // Sanity check; BIOS int13h can only read up to 0x7F blocks
-   if ( num_blocks > 0x7F )
-      return -1;
-   
-   disk_address_packet.packet_size = 0x10;
-   disk_address_packet.resv1 = 0x00;
-   disk_address_packet.num_blocks = num_blocks;
-   disk_address_packet.resv2 = 0x00;
-   disk_address_packet.offset = 0x0000;
-   disk_address_packet.segment = 0x4000;
-   disk_address_packet.LBA_sector = ( unsigned long long ) part_start_lba + ( unsigned long long ) sector_offset;
-   
-   real_mode_linear_sw_int.ah = 0x42;   // Extended read
-   real_mode_linear_sw_int.dl = bios_disk_number;
-   real_mode_linear_sw_int.si = 0x0040; // Pointer to dap (in real mode memory...DS:SI)
-   real_mode_linear_sw_int.opcode = 0xCD;
-   real_mode_linear_sw_int.operand = 0x13;
-   
-   real_mode_sw_int_call();
-   
-   return real_mode_linear_sw_int.ah;
+   unsigned char iterator = 0;
+   unsigned short* buffer = DISK_READ_LOCATION + readLocationOffset;
+   for (iterator = 0; iterator < num_blocks; iterator++)
+   {
+		while (!(inb(0x1F7) & 0x08)) {
+			}
+		
+		// for read:
+
+		unsigned short idx = 0;
+		//read in bytes from disk
+		for (idx = 0; idx < 256; idx++)
+		{
+			buffer[idx] = inw(0x1F0);
+		}
+		buffer += idx;
+	}
+   return 0;
    
 }
 
-// Write sector(s) to booted partition from 0x4000:0100
+// Write sector(s) to booted partition from 0x4000:0000
+// Returns 0 on success and non-zero on failure
+int int13h_write_o(unsigned long sector_offset, unsigned char num_blocks, unsigned long writeLocationOffset) {
+
+	// Bounds check; only write sectors on the booted partition
+	if (sector_offset + num_blocks > part_length)
+		return -1;
+
+	//Size check; only write blocks if the resulting size written will still be between 0x4000 and 0x8000
+	if (writeLocationOffset + num_blocks * 512 > (0x8000 - 0x4000))
+		return -1;
+
+	// Sanity check; BIOS int13h can only write up to 0x7F blocks
+	if (num_blocks > 0x7F)
+		return -1;
+
+	sector_offset = sector_offset + part_start_lba;
+   
+   //Implementing LBA28
+   
+   //Send out LBA and write instructions to disk
+   outb(0x1F1, NULL);
+   outb(0x1F2, num_blocks);
+   outb(0x1F3, (unsigned char)sector_offset);
+   outb(0x1F4, (unsigned char)(sector_offset >> 8));
+   outb(0x1F5, (unsigned char)(sector_offset >> 16));
+   outb(0x1F6, 0xE0 | (0 << 4) | ((sector_offset >> 24) & 0x0F));
+   outb(0x1F7, 0x30);
+   
+   unsigned char iterator = 0;
+   unsigned short* buffer = DISK_WRITE_LOCATION + writeLocationOffset;
+   for (iterator = 0; iterator < num_blocks; iterator++)
+   {
+		//check for errors before writing
+		while (1) {
+			if ((inb(0x1F7) & 0x01) == 0x01)
+				printss ("error1\n");
+			else if ((inb(0x1F7) & 0x40) != 0x40)
+				printss ("Not ready!\n");
+			else if ((inb(0x1F7) & 0x80) == 0x80)
+				printss ("Busy!\n");
+			else if ((inb(0x1F7) & 0x08) != 0x08)
+				printss ("Have no data/not ready to recieve PIO!\n");
+			else
+			break;
+		}
+
+		unsigned short idx = 0;
+		//send out data to disk
+		for (idx = 0; idx < 256; idx++)
+		{
+			outw(0x1F0, buffer[idx]);
+			
+			//short delay
+			inb(0x323);
+			inb(0x323);
+			inb(0x323);
+		}
+		buffer += idx;
+	}
+	outb(0x1F7, 0xE7); //send cache clear
+	while (inb(0x1F7) & 0x80) //wait for drive to finish clearing cache
+	{
+	}
+   return 0; 
+}
+
+// Read sector(s) from booted partition to 0x4000:0000
+// Returns 0 on success and non-zero on failure
+int int13h_read( unsigned long sector_offset, unsigned char num_blocks ) {
+   return int13h_read_o(sector_offset, num_blocks, 0); 
+}
+
+// Write sector(s) to booted partition from 0x4000:0000
 // Returns 0 on success and non-zero on failure
 int int13h_write( unsigned long sector_offset, unsigned char num_blocks ) {
-   
-   // Bounds check; only write sectors on the booted partition
-   if ( sector_offset + num_blocks > part_length )
-      return -1;
-   
-   // Sanity check; BIOS int13h can only write up to 0x7F blocks
-   if ( num_blocks > 0x7F )
-      return -1;
-   
-   disk_address_packet.packet_size = 0x10;
-   disk_address_packet.resv1 = 0x00;
-   disk_address_packet.num_blocks = num_blocks;
-   disk_address_packet.resv2 = 0x00;
-   disk_address_packet.offset = 0x0000;
-   disk_address_packet.segment = 0x4000;
-   disk_address_packet.LBA_sector = ( unsigned long long ) part_start_lba + ( unsigned long long ) sector_offset;
-   
-   real_mode_linear_sw_int.al = 0x00;   // Write with verify off
-   real_mode_linear_sw_int.ah = 0x43;   // Extended write
-   real_mode_linear_sw_int.dl = bios_disk_number;
-   real_mode_linear_sw_int.si = 0x0040; // Pointer to dap (in real mode memory...DS:SI)
-   real_mode_linear_sw_int.opcode = 0xCD;
-   real_mode_linear_sw_int.operand = 0x13;
-   
-   real_mode_sw_int_call();
-   
-   return real_mode_linear_sw_int.ah;
-   
+	return int13h_write_o (sector_offset, num_blocks, 0);
 }
+
+

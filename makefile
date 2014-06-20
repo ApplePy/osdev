@@ -15,40 +15,53 @@ stage2.txt: stage2.bin fillprep
 	echo "" >> stage2.txt
 	echo -n "g" >> stage2.txt
 
-stage2.bin: stage2.o stage2_main.o lib_asm.o lib_c.o string.o
-	ld -s -o stage2.bin --oformat binary -Ttext 0x10200 stage2.o stage2_main.o lib_asm.o lib_c.o string.o
+stage2.bin: stage2.o stage2_main.o lib_asm.o lib_c.o string.o stringc.o
+	ld -s -o stage2.bin --oformat binary -Ttext 0x10200 stage2.o stage2_main.o lib_asm.o lib_c.o string.o stringc.o
 
 stage2.o: stage2.asm
 	nasm -f aout -o stage2.o stage2.asm
 
 stage2_main.o: stage2_main.c lib_asm.h lib_c.h string.h
-	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o stage2_main.o stage2_main.c
+	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o stage2_main.o stage2_main.c -fno-stack-protector -shared
+	
+stringc.o: string.c
+	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o stringc.o string.c -fno-stack-protector -shared
+	
+FAT.o: FAT.c FAT.h lib_asm.h lib_c.h
+	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o FAT.o FAT.c -fno-stack-protector -shared
+	
+delay.txt:
+	for i in `seq 1 50`; do echo "" >> delay.txt; done
 
 kernel.txt: kernel.bin fillprep stage2.txt delay.txt
-	cat stage2.txt > kernel.txt
-	cat delay.txt >> kernel.txt
-	echo -n "s00100000" >> kernel.txt
+#	cat stage2.txt > kernel.txt
+#	cat delay.txt >> kernel.txt
+#	echo -n "s00100000" >> kernel.txt
+	echo -n "s00100000" > kernel.txt
 	./fillprep < kernel.bin >> kernel.txt
 	echo "" >> kernel.txt
 	echo -n "c00100000" >> kernel.txt
 
-kernel.bin: kernel.o kernel_main.o lib_asm.o lib_c.o string.o
-	ld -s -o kernel.bin --oformat binary -Ttext 0x100000 kernel.o kernel_main.o lib_asm.o lib_c.o string.o
+kernel.bin: kernel.o kernel_main.o lib_asm.o lib_c.o string.o stringc.o FAT.o
+	ld -s -o kernel.bin --oformat binary -Ttext 0x100000 kernel.o kernel_main.o lib_asm.o lib_c.o string.o stringc.o FAT.o
 
 kernel.o: kernel.asm
 	nasm -f aout -o kernel.o kernel.asm
 
-kernel_main.o: kernel_main.c lib_asm.h lib_c.h string.h
-	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o kernel_main.o kernel_main.c
+kernel_main.o: kernel_main.c lib_asm.h lib_c.h string.h FAT.h
+	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o kernel_main.o kernel_main.c -fno-stack-protector -shared
 
 lib_asm.o: lib_asm.asm lib_asm.h
 	nasm -f aout -o lib_asm.o lib_asm.asm
 
 lib_c.o: lib_c.c lib_c.h
-	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o lib_c.o lib_c.c
+	gcc -fno-builtin -mregparm=1 -c -O0 -Wall -o lib_c.o lib_c.c -fno-stack-protector -shared
 
 string.o: string.asm
 	nasm -f aout -o string.o string.asm
 
 fillprep: fillprep.c
 	gcc -o fillprep fillprep.c
+
+clean:
+	rm -f *.bin *.o *.com *.txt fillprep
